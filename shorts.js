@@ -334,6 +334,18 @@
     bottom: '<path d="M32 14 H68 L72 86 H55 L50 40 L45 86 H28Z"/>',
     shoe: '<path d="M14 58 Q14 44 28 44 L40 44 Q46 56 62 58 L86 62 Q90 72 84 76 L16 76 Q12 70 14 58Z"/>'
   };
+  /* 사이즈표 캡처 → 실측표 자동 입력, 이어서 상품 사진 캡처 */
+  var ocr = { busy: false, msg: '', ok: false };
+  function captureCards(d) {
+    var st = ocr.busy ? '<span class="tag">읽는 중</span>' : (ocr.msg ? '<span class="tag' + (ocr.ok ? ' real' : '') + '">' + (ocr.ok ? '읽음' : '확인 필요') + '</span>' : '');
+    return '<div class="card"><div class="h"><span>① 사이즈표 캡처</span>' + st + '</div>' +
+      '<div class="note">쿠팡 상품 페이지의 사이즈표(실측표)를 캡처해서 올리면 아래 실측표를 자동으로 채웁니다. 인식이 틀릴 수 있으니 꼭 확인해 주세요.</div>' +
+      '<label class="btn sm" style="cursor:pointer;align-self:flex-start">' + (ocr.busy ? '읽는 중…' : '사이즈표 사진 선택') + '<input type="file" accept="image/*" data-file="sizeCap" hidden' + (ocr.busy ? ' disabled' : '') + '></label>' +
+      (ocr.msg ? '<div data-ocrmsg class="' + (ocr.ok ? 'note' : 'warn') + '">' + h(ocr.msg) + '</div>' : '') + '</div>' +
+      '<div class="card"><div class="h"><span>② 상품 사진 캡처</span>' + (d.photo ? '<span class="tag real">등록됨</span>' : '') + '</div>' +
+      '<div class="photo">' + (d.photo ? '<img alt="상품 사진" src="' + d.photo + '">' : '상품 사진 (선택, 참고용)') + '</div>' +
+      '<label class="btn sm" style="cursor:pointer;align-self:flex-start">상품 사진 선택<input type="file" accept="image/*" data-file="draftPhoto" hidden></label></div>';
+  }
   function viewEditor(cat) {
     var d = state.draft;
     var fields = FIELDS[cat];
@@ -346,12 +358,10 @@
       }).join('') + '</tr>';
     }).join('');
     var refSel = d.sizes.map(function (s) { return '<option value="' + h(s.label) + '"' + (d.refSize === s.label ? ' selected' : '') + '>' + h(s.label) + '</option>'; }).join('');
-    return '<div class="body"><div class="sec">' + CATS[cat] + ' ' + (d.id ? '수정' : '새 상품') + '</div>' +
+    return '<div class="body"><div class="sec">' + CATS[cat] + ' ' + (d.id ? '수정' : '새 상품') + '</div>' + captureCards(d) +
       '<label class="f">상품 이름<input type="text" data-path="draft.name" value="' + h(d.name) + '" placeholder="예) 스판 라운드 티셔츠"></label>' +
       '<label class="f">가격 (원, 선택)<input type="number" inputmode="numeric" min="0" data-path="draft.price" value="' + h(d.price == null ? '' : d.price) + '" placeholder="예) 39000"></label>' +
       '<label class="f">상품 링크 (선택)<input type="url" data-path="draft.url" value="' + h(d.url || '') + '" placeholder="https://..."></label>' +
-      '<div class="photo">' + (d.photo ? '<img alt="상품 사진" src="' + d.photo + '">' : '상품 사진 (선택, 참고용)') + '</div>' +
-      '<label class="btn sm" style="cursor:pointer;align-self:flex-start">사진 선택<input type="file" accept="image/*" data-file="draftPhoto" hidden></label>' +
       (cat === 'shoe' ? '' : '<div class="sec">실측표 방식</div>' + seg('draft.measureType', d.measureType, [['flat', '단면(평평하게 잰 값)'], ['circ', '둘레']])) +
       (cat === 'shoe' ? '' : '<div class="sec">소재</div><div class="chips">' + Object.keys(BASE_CFG.fabric).map(function (k) {
         return '<button class="chip' + (d.fabric === k ? ' on' : '') + '" data-act="set" data-path="draft.fabric" data-val="' + k + '">' + BASE_CFG.fabric[k].label + '</button>';
@@ -631,6 +641,24 @@
     if (kind === 'lgAvatar') {
       shrink(file, 1000, 0.92).then(function (b) { if (lg.avatarUrl) URL.revokeObjectURL(lg.avatarUrl); lg.avatar = b; lg.avatarUrl = URL.createObjectURL(b); render(); })
         .catch(function (err) { alert(err.message); });
+    } else if (kind === 'sizeCap') {
+      var d0 = state.draft;
+      if (!d0 || !window.SizeOcr) return;
+      ocr = { busy: true, msg: '글자를 읽는 중입니다. 처음에는 인식 데이터를 내려받느라 1분 가까이 걸릴 수 있어요.', ok: false }; render();
+      SizeOcr.recognize(file, function (stt, p) {
+        if (p != null && ocr.busy) { ocr.msg = '글자를 읽는 중… ' + Math.round(p * 100) + '%'; var el = root.querySelector('[data-ocrmsg]'); if (el) el.textContent = ocr.msg; }
+      }).then(function (text) {
+        var d = state.draft;
+        if (!d || d !== d0 && d.cat !== d0.cat) { ocr = { busy: false, msg: '', ok: false }; return; }
+        var r = SizeOcr.parse(text, d.cat);
+        if (!r.sizes.length) { ocr = { busy: false, msg: '사이즈표를 읽지 못했습니다. 글자가 크고 또렷하게 다시 캡처하거나, 아래 표에 직접 입력해 주세요.', ok: false }; render(); return; }
+        d.sizes = r.sizes;
+        if (r.circ) d.measureType = 'circ';
+        if (d.isRef && !d.sizes.some(function (s) { return s.label === d.refSize; })) d.refSize = d.sizes[0].label;
+        save();
+        ocr = { busy: false, msg: '사이즈 ' + r.sizes.length + '개' + (d.cat === 'shoe' ? '를 읽었습니다.' : ', 항목 ' + r.found + '개를 채웠습니다.') + ' 아래 표 값이 캡처와 같은지 꼭 확인해 주세요.', ok: true };
+        render();
+      }).catch(function (err) { ocr = { busy: false, msg: err.message || '글자를 읽지 못했습니다.', ok: false }; render(); });
     } else if (kind === 'draftPhoto') {
       shrink(file, 240, 0.8).then(blobToDataUrl).then(function (u) { state.draft.photo = u; save(); render(); }).catch(function (err) { alert(err.message); });
     } else if (kind === 'avatar') {
@@ -781,8 +809,8 @@
   ACT.pick = function (el) { state.sel[el.dataset.cat] = { id: el.dataset.id, size: el.dataset.size || null }; save(); render(); };
   ACT.clearSel = function (el) { delete state.sel[el.dataset.cat]; save(); render(); };
   var _new = ACT.new, _edit = ACT.edit, _save = ACT.saveDraft, _logout = ACT.logout;
-  ACT.new = function (el) { editCat = el.dataset.cat; _new(el); openSheet('edit'); };
-  ACT.edit = function (el) { var it = item(el.dataset.id); if (!it) return; editCat = it.cat; _edit(el); openSheet('edit'); };
+  ACT.new = function (el) { editCat = el.dataset.cat; ocr = { busy: false, msg: '', ok: false }; _new(el); openSheet('edit'); };
+  ACT.edit = function (el) { var it = item(el.dataset.id); if (!it) return; editCat = it.cat; ocr = { busy: false, msg: '', ok: false }; _edit(el); openSheet('edit'); };
   ACT.saveDraft = function () { _save(); if (!state.draft) ACT.closeSheet(); };
   ACT.cancelEdit = function () { state.draft = null; ACT.closeSheet(); };
   ACT.logout = function () { onbShown = false; sheet = null; try { history.replaceState({}, ''); } catch (e) {} _logout(); };
