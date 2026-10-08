@@ -160,7 +160,7 @@
     var tabs = STEPS.map(function (st, i) {
       return '<button data-act="go" data-step="' + st + '" class="' + (i < idx ? 'done' : '') + (i === idx ? ' on' : '') + '"' + (i === idx ? ' aria-current="step"' : '') + '>' + STEP_NAMES[st] + '</button>';
     }).join('');
-    return '<div class="bar"><div class="brand">' + LOGO + '<div class="wm">AI FIT<i></i></div><span class="mini">' + h(user.nick) + ' 님</span><button class="btn sm" data-act="logout">로그아웃</button></div><nav class="tabs" aria-label="진행 단계">' + tabs + '</nav></div>';
+    return '<div class="bar"><div class="brand">' + LOGO + '<div class="wm">AI FIT<i></i></div><span class="mini">' + h(user.nick) + ' 님</span><button class="btn sm" data-act="settings" aria-label="설정">⚙ 설정</button></div><nav class="tabs" aria-label="진행 단계">' + tabs + '</nav></div>';
   }
   function footer(prevLabel, nextLabel, opts) {
     opts = opts || {};
@@ -256,6 +256,7 @@
     try { localStorage.setItem(CUR_KEY, user.id); } catch (e) {}
     resetLogin(); lg.fails = 0; lg.until = 0; sheet = null;
     clearUrls(); render(); window.scrollTo(0, 0);
+    try { history.replaceState({ s: state.step }, ''); } catch (e) {}
     loadMedia().then(render);
   }
   function lgCreate() {
@@ -314,7 +315,7 @@
   }
 
   /* ---------- 화면: 내 정보 ---------- */
-  function viewProfile() {
+  function profileForm() {
     var p = state.profile;
     var body = E.bodyOf(p, cfgNow());
     var rows = MFIELDS.map(function (f) {
@@ -324,21 +325,38 @@
         '<div class="inwrap"><input type="number" inputmode="decimal" step="0.1" id="m-' + f[0] + '" data-path="profile.m.' + f[0] + '" data-hint="' + f[0] + '" value="' + h(v) + '" placeholder="' + (est != null ? est : '') + '" aria-label="' + f[1] + '"><small>' + f[2] + '</small></div>' +
         '<span id="tag-' + f[0] + '">' + (v !== '' ? srcTag('real') : (est != null ? srcTag('est') : '')) + '</span></div>';
     }).join('');
-    var media = '<div class="card"><div class="h"><span>내 아바타</span></div>' +
-      '<div class="note">이미 만든 아바타 이미지와 동작 영상을 연결합니다. 이 기기 안에만 저장됩니다.</div>' +
-      mediaRow('avatar', '아바타 이미지', 'image/*', !!urls.avatar) +
-      MOTIONS.map(function (m, i) { return mediaRow('video' + i, '영상 · ' + m, 'video/*', !!urls.videos[i]); }).join('') + '</div>';
-    return header() + '<div class="body">' + HERO +
-      seg('profile.gender', p.gender, [['male', '남성'], ['female', '여성']]) +
+    return seg('profile.gender', p.gender, [['male', '남성'], ['female', '여성']]) +
       '<div class="row2"><label class="f">키<div class="inwrap"><input type="number" inputmode="decimal" id="in-height" data-path="profile.height" data-hint="1" value="' + h(p.height) + '"><small>cm</small></div></label>' +
       '<label class="f">몸무게<div class="inwrap"><input type="number" inputmode="decimal" id="in-weight" data-path="profile.weight" data-hint="1" value="' + h(p.weight) + '"><small>kg</small></div></label></div>' +
       '<div class="sec">내 치수 (비워 두면 키·몸무게로 추정)</div><div>' + rows + '</div>' +
       '<div class="note">추정식은 초안입니다. 실측값을 입력할수록 정확해집니다.</div>' +
-      '<div class="sec">선호 핏</div>' + seg('profile.pref', p.pref, PREFS) +
-      media +
+      '<div class="sec">선호 핏</div>' + seg('profile.pref', p.pref, PREFS);
+  }
+  function mediaCard() {
+    return '<div class="card"><div class="h"><span>내 아바타</span></div>' +
+      '<div class="note">이미 만든 아바타 이미지와 동작 영상을 연결합니다. 이 기기 안에만 저장됩니다.</div>' +
+      mediaRow('avatar', '아바타 이미지', 'image/*', !!urls.avatar) +
+      MOTIONS.map(function (m, i) { return mediaRow('video' + i, '영상 · ' + m, 'video/*', !!urls.videos[i]); }).join('') + '</div>';
+  }
+  function viewProfile() {
+    return header() + '<div class="body">' + HERO + profileForm() + mediaCard() +
       '<button class="btn" data-act="sample">예시 데이터 불러오기</button>' +
       '<button class="btn danger" data-act="resetAll">이 프로필 데이터 지우기</button></div>' +
       footer('', '다음: 상의 고르기');
+  }
+  function viewSettings() {
+    var av = urls.avatar ? '<img class="uav big" alt="" src="' + urls.avatar + '">' : '<span class="uav big">' + h(String(user.nick).charAt(0)) + '</span>';
+    var jump = STEPS.map(function (st) {
+      return '<button class="chip' + (st === backStep ? ' on' : '') + '" data-act="go" data-step="' + st + '">' + STEP_NAMES[st] + '</button>';
+    }).join('');
+    return header() + '<div class="body"><div class="sec">설정</div>' +
+      '<div class="card"><div class="ucard">' + av + '<div><b>' + h(user.nick) + ' 님</b><div class="note">이 기기 안에 저장된 프로필</div></div></div>' +
+      '<div class="acts"><button class="btn sm" data-act="logout">프로필 바꾸기</button><button class="btn sm danger" data-act="logout">로그아웃</button></div></div>' +
+      '<div class="sec">화면 이동</div><div class="chips">' + jump + '</div>' +
+      '<div class="sec">내 정보 변경</div><div class="note">처음 입력한 성별·키·몸무게·치수를 여기서 언제든 바꿀 수 있어요. 바꾸면 바로 저장되고 결과에 반영됩니다.</div>' +
+      profileForm() + mediaCard() +
+      '<button class="btn danger" data-act="resetAll">이 프로필 데이터 지우기</button></div>' +
+      '<div class="foot"><button class="btn p" data-act="closeSettings">닫기</button></div>';
   }
   function mediaRow(kind, label, accept, has) {
     return '<div class="line" style="align-items:center"><span>' + label + ' ' + (has ? '<span class="tag real">연결됨</span>' : '<span class="tag">없음</span>') + '</span>' +
@@ -465,6 +483,7 @@
     list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
     swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>',
     tune: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>'
   };
 
@@ -565,7 +584,7 @@
     }
     return '<div class="reel">' + reelMedia() +
       '<div class="rtop"><div class="rsegs">' + segs + '</div><div class="rbar"><button class="rbtn" data-act="go" data-step="confirm" aria-label="코디 다시 고르기">' + IC.back + '</button>' +
-      '<div class="wm">AI FIT</div><span class="rtag">내 코디 입어보기</span></div></div>' +
+      '<div class="wm">AI FIT</div><span class="rtag">내 코디 입어보기</span><button class="rbtn" data-act="settings" aria-label="설정">' + IC.gear + '</button></div></div>' +
       '<div class="rrail">' +
         '<button data-act="sheet" data-cat="all" aria-label="핏 상세">' + IC.list + '<span>상세</span></button>' +
         '<button data-act="go" data-step="top" aria-label="코디 바꾸기">' + IC.swap + '<span>코디</span></button>' +
@@ -590,6 +609,7 @@
     var s = state.step, html;
     if (s === 'profile') html = viewProfile();
     else if (s === 'top' || s === 'bottom' || s === 'shoe') html = viewProduct(s);
+    else if (s === 'settings') html = viewSettings();
     else if (s === 'confirm') html = viewConfirm();
     else html = viewResult();
     var y = window.scrollY;
@@ -597,7 +617,21 @@
     root.innerHTML = html;
     window.scrollTo(0, y);
   }
-  function go(step) { state.step = step; state.draft = null; sheet = null; save(); render(); window.scrollTo(0, 0); }
+  var backStep = 'profile';
+  function go(step) {
+    if (step === 'settings' && state.step !== 'settings') backStep = state.step;
+    var changed = step !== state.step || sheet;
+    state.step = step; state.draft = null; sheet = null; save(); render(); window.scrollTo(0, 0);
+    if (changed && user) { try { history.pushState({ s: step }, ''); } catch (e) {} }
+  }
+  /* 브라우저/폰 뒤로가기: 앱이 꺼지지 않고 앞 화면(또는 열린 시트 닫기)으로 */
+  window.addEventListener('popstate', function (e) {
+    if (!user) { render(); return; }
+    var hs = e.state || {};
+    sheet = null; state.draft = null;
+    state.step = STEPS.indexOf(hs.s) >= 0 || hs.s === 'settings' ? hs.s : 'profile';
+    save(); render(); window.scrollTo(0, 0);
+  });
 
   function refreshHints() {
     var body = E.bodyOf(state.profile, cfgNow());
@@ -673,8 +707,10 @@
       d.sizes.push({ label: nx }); render();
     },
     delSize: function () { if (state.draft.sizes.length > 1) { state.draft.sizes.pop(); render(); } },
-    sheet: function (el) { sheet = el.dataset.cat; render(); },
-    closeSheet: function () { sheet = null; render(); },
+    sheet: function (el) { sheet = el.dataset.cat; render(); try { history.pushState({ s: state.step, sh: 1 }, ''); } catch (e) {} },
+    closeSheet: function () { if (history.state && history.state.sh) history.back(); else { sheet = null; render(); } },
+    settings: function () { go('settings'); },
+    closeSettings: function () { go(backStep && backStep !== 'settings' ? backStep : 'profile'); },
     motion: function (el) { state.motion = Number(el.dataset.i); save(); render(); },
     clearFile: function (el) {
       var k = el.dataset.kind;
@@ -814,6 +850,7 @@
   root.addEventListener('click', function (e) { if (e.target.closest('.herovid')) showIntro(false); });
   if (!introSeen()) showIntro(true);
 
+  try { history.replaceState({ s: state.step }, ''); } catch (e) {}
   render();
   loadMedia().then(render);
 })();
