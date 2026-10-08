@@ -656,7 +656,9 @@
         if (r.circ) d.measureType = 'circ';
         if (d.isRef && !d.sizes.some(function (s) { return s.label === d.refSize; })) d.refSize = d.sizes[0].label;
         save();
-        ocr = { busy: false, msg: '사이즈 ' + r.sizes.length + '개' + (d.cat === 'shoe' ? '를 읽었습니다.' : ', 항목 ' + r.found + '개를 채웠습니다.') + ' 아래 표 값이 캡처와 같은지 꼭 확인해 주세요.', ok: true };
+        var bad = r.bad || [];
+        ocr = { busy: false, msg: '사이즈 ' + r.sizes.length + '개' + (d.cat === 'shoe' ? '를 읽었습니다.' : ', 항목 ' + r.found + '개를 채웠습니다.') + ' 아래 표 값이 캡처와 같은지 꼭 확인해 주세요.' +
+          (bad.length ? ' 특히 의심되는 칸: ' + bad.join(', ') + ' (사이즈가 커지는데 값이 어긋남). 표 부분만 크게 캡처하면 더 정확해집니다.' : ''), ok: !bad.length };
         render();
       }).catch(function (err) { ocr = { busy: false, msg: err.message || '글자를 읽지 못했습니다.', ok: false }; render(); });
     } else if (kind === 'draftPhoto') {

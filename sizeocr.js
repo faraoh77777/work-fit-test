@@ -16,9 +16,60 @@
   function nums(s) { return (String(s).match(NUM) || []).map(Number); }
   function squeeze(s) { return String(s).replace(/\s+/g, '').toLowerCase(); }
 
+  /* 소수점 OCR 오류 보정: "35. 5", "13, 5" → 35.5, 13.5 */
+  function fixNum(l) { return l.replace(/(\d)\s*[.,]\s+(\d)(?!\d)/g, '$1.$2'); }
+
+  /* 사이즈가 세로, 항목이 가로인 표 (쿠팡에 흔함): 머리줄의 항목 순서대로 아래 줄 숫자를 읽는다 */
+  function parseColumns(lines, cat) {
+    var keys = KEYS[cat] || [], hi = -1, order = [];
+    for (var i = 0; i < lines.length && hi < 0; i++) {
+      var sq = squeeze(lines[i]), hits = [];
+      keys.forEach(function (k) {
+        k[1].slice().sort(function (a, b) { return b.length - a.length; }).some(function (w) {
+          var p = sq.indexOf(w);
+          if (p < 0) return false;
+          hits.push({ f: k[0], p: p });
+          sq = sq.slice(0, p) + new Array(w.length + 1).join('_') + sq.slice(p + w.length);
+          return true;
+        });
+      });
+      if (hits.length >= 2) { hi = i; order = hits.sort(function (a, b) { return a.p - b.p; }).map(function (x) { return x.f; }); }
+    }
+    if (hi < 0) return null;
+    var out = [];
+    for (var j = hi + 1; j < lines.length; j++) {
+      var m = fixNum(lines[j]).normalize('NFKC').match(/^\W*((?:[2-4]?XL|XXL|XXXL|XXS|XS|S|M|L|F|FREE))\b(.*)$/i);
+      if (!m) continue;
+      var n = nums(m[2].replace(/\d+\s*[-~]\s*\d+/g, ' ')).filter(function (x) { return x > 0 && x < 300; });
+      if (n.length < order.length) continue;
+      var rec = { label: m[1].toUpperCase() };
+      order.forEach(function (f, c) { rec[f] = String(n[c]); });
+      out.push(rec);
+    }
+    return out.length ? { sizes: out, found: order.length } : null;
+  }
+
+  /* 사이즈가 커지면 값도 커져야 한다: 이웃과 어긋난 칸을 찾아 알려 준다 */
+  function suspect(sizes) {
+    var bad = [], fields = {};
+    sizes.forEach(function (r) { Object.keys(r).forEach(function (k) { if (k !== 'label') fields[k] = 1; }); });
+    Object.keys(fields).forEach(function (f) {
+      sizes.forEach(function (r, i) {
+        var v = Number(r[f]), p = i > 0 ? Number(sizes[i - 1][f]) : null, q = i < sizes.length - 1 ? Number(sizes[i + 1][f]) : null;
+        if ((p != null && !(v >= p)) || (q != null && !(v <= q))) bad.push(r.label + ' ' + f);
+      });
+    });
+    return bad;
+  }
+
   /* OCR 로 읽은 글자 → { sizes:[{label, 필드...}], found:n, circ:bool } (못 읽으면 sizes 빈 배열) */
   function parse(text, cat) {
     var lines = String(text || '').split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+    if (cat !== 'shoe') {
+      var col = parseColumns(lines, cat), all = lines.join('').replace(/\s+/g, '');
+      if (col) var big = col.sizes.some(function (r) { return Number(r.chest || r.waist || r.hip || 0) > 70; });
+      return { sizes: col.sizes, found: col.found, circ: (big || /둘레/.test(all)) && !/단면/.test(all), bad: suspect(col.sizes) };
+    }
     var keys = KEYS[cat] || [], used = {}, rows = {}, circ = false, flat = false;
 
     if (cat === 'shoe') {
@@ -72,7 +123,7 @@
       });
       out.push(rec);
     }
-    return { sizes: out, found: found.length, circ: circ && !flat };
+    return { sizes: out, found: found.length, circ: circ && !flat, bad: suspect(out) };
   }
 
   var loading = null;
