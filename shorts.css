@@ -1,0 +1,13 @@
+/* 전체 화면(쇼츠형) 전용 보강: 기본 컴포넌트는 style.css 를 그대로 쓴다 */
+.sheet{max-height:88%}
+.sheet.half{max-height:56%}
+.sheetbg.lite{background:rgba(0,0,0,.12)}
+.sheet .foot{position:static;border:0;padding:0}
+.sheet .body{padding:0}
+.hs{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+.hs::-webkit-scrollbar{display:none}
+.hs .tile{flex:0 0 118px}
+.rrail{gap:12px}
+.rrail button svg{width:42px;height:42px;padding:10px}
+.rrail button.on svg{background:#fff;color:#141414}
+.rrail button.has svg{box-shadow:0 0 0 2px var(--accent)}
