@@ -1,0 +1,9 @@
+# 원본 클립·검수 이미지
+assets/src/
+# 이전 버전 영상 (앱은 hero_v4_5cut.mp4만 사용)
+assets/hero.mp4
+assets/hero_v1_crossfade.mp4
+assets/hero_v2_cut.mp4
+assets/hero_v3_4cut.mp4
+# 인수인계 문서
+HANDOFF_*.md
