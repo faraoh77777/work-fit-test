@@ -51,7 +51,7 @@ button{cursor:pointer}
 .note{font-size:12px;color:var(--muted)}
 .warn{font-size:12px;color:var(--g-tight)}
 label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
-.inp,input[type=text],input[type=number],select{border:1px solid var(--line);background:var(--surface);border-radius:4px;padding:9px 10px;font-size:14px;width:100%;min-width:0;font-variant-numeric:tabular-nums}
+.inp,input[type=text],input[type=number],input[type=password],select{border:1px solid var(--line);background:var(--surface);border-radius:4px;padding:9px 10px;font-size:14px;width:100%;min-width:0;font-variant-numeric:tabular-nums}
 input:focus,select:focus{border-color:var(--ink);outline:0}
 .inwrap{position:relative;display:flex;align-items:center}
 .inwrap input{padding-right:34px}
@@ -207,3 +207,13 @@ body:has(#app.reelmode){padding:0;background:#000}
 #intro .in-ai{position:absolute;left:12px;bottom:max(env(safe-area-inset-bottom),12px);font-size:11px;color:#fff;background:rgba(0,0,0,.45);padding:3px 8px;border-radius:3px}
 #intro .in-skip{position:absolute;right:12px;bottom:max(env(safe-area-inset-bottom),12px);border:1px solid rgba(255,255,255,.7);background:rgba(0,0,0,.45);color:#fff;font-size:13px;padding:8px 14px;border-radius:20px;cursor:pointer}
 .herovid{cursor:pointer}
+
+/* 로그인(이 기기 안 프로필) */
+.ulist{display:flex;flex-direction:column;gap:8px}
+.urow{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:6px;padding:8px 10px 8px 8px;background:var(--surface)}
+.ugo{flex:1;display:flex;align-items:center;gap:10px;border:0;background:none;padding:2px;text-align:left;font-size:15px;min-width:0}
+.ugo b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ucard{display:flex;align-items:center;gap:12px}
+.uav{width:40px;height:40px;border-radius:50%;flex:none;object-fit:cover;background:var(--btn-bg);color:var(--btn-fg);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:16px}
+.uav.big{width:72px;height:72px;font-size:26px}
+.brand .btn.sm{margin-left:4px}

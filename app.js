@@ -3,7 +3,8 @@
 (function () {
   'use strict';
 
-  var KEY = 'fit-test-v1';
+  var KEY = 'fit-test-v1';                 /* 프로필별 데이터는 KEY + ':' + 사용자 id. KEY 단독은 로그인 도입 전 데이터 */
+  var USERS_KEY = 'fit-users-v1', CUR_KEY = 'fit-current-user';
   var STEPS = ['profile', 'top', 'bottom', 'shoe', 'confirm', 'result'];
   var STEP_NAMES = { profile: '내 정보', top: '상의', bottom: '하의', shoe: '신발', confirm: '확인', result: '결과' };
   var CATS = { top: '상의', bottom: '하의', shoe: '신발' };
@@ -36,18 +37,33 @@
     return { step: 'profile', profile: { gender: 'male', height: '', weight: '', pref: 'fit', m: {} },
       closet: [], sel: {}, draft: null, motion: 0, cfg: null, feel: {}, seq: 1 };
   }
-  var state = load();
+  /* ---------- 프로필(이 기기 안 로그인) ---------- */
+  function readUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch (e) { return []; } }
+  function writeUsers(list) { try { localStorage.setItem(USERS_KEY, JSON.stringify(list)); } catch (e) { /* 저장 불가 */ } }
+  function userById(id) { return readUsers().filter(function (u) { return u.id === id; })[0] || null; }
+  /* 같은 기기를 쓰는 사람끼리 구분하는 잠금용. http(192.168…)에서도 돌아가도록 crypto.subtle 없이 계산한다 */
+  function pinHash(salt, pin) {
+    var s = salt + ':' + pin, a = 0x811c9dc5, b = 5381;
+    for (var r = 0; r < 2000; r++) {
+      for (var i = 0; i < s.length; i++) { var c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = (Math.imul(b, 33) + c) >>> 0; }
+      s = a.toString(36) + b.toString(36) + salt;
+    }
+    return s;
+  }
+  var user = (function () { try { return userById(localStorage.getItem(CUR_KEY)); } catch (e) { return null; } })();
+
+  var state = user ? load() : blankState();
   var urls = { avatar: null, videos: [null, null, null] };
   var openCfg = false;
 
   function load() {
     try {
-      var raw = localStorage.getItem(KEY);
+      var raw = localStorage.getItem(KEY + ':' + user.id);
       if (raw) { var s = JSON.parse(raw); return Object.assign(blankState(), s); }
     } catch (e) { /* 저장소를 못 쓰면 메모리로만 동작 */ }
     return blankState();
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 용량 초과 등 */ } }
+  function save() { if (!user) return; try { localStorage.setItem(KEY + ':' + user.id, JSON.stringify(state)); } catch (e) { /* 용량 초과 등 */ } }
 
   /* ---------- IndexedDB (아바타 이미지·영상) ---------- */
   var dbp = null;
@@ -68,16 +84,31 @@
         var tx = d.transaction('blobs', mode), st = tx.objectStore('blobs'), rq = fn(st);
         tx.oncomplete = function () { res(rq && rq.result); };
         tx.onerror = function () { rej(tx.error); };
+        tx.onabort = function () { rej(tx.error || new Error('저장 취소')); };
       });
     });
   }
-  function blobGet(k) { return idb('readonly', function (s) { return s.get(k); }).catch(function () { return null; }); }
-  function blobPut(k, v) { return idb('readwrite', function (s) { return s.put(v, k); }); }
-  function blobDel(k) { return idb('readwrite', function (s) { return s.delete(k); }); }
+  function rawGet(k) { return idb('readonly', function (s) { return s.get(k); }).catch(function () { return null; }); }
+  function rawPut(k, v) { return idb('readwrite', function (s) { return s.put(v, k); }); }
+  function rawDel(k) { return idb('readwrite', function (s) { return s.delete(k); }); }
+  /* 로그인한 프로필의 이미지·영상 키는 '사용자id:avatar' 형태 */
+  function bk(k) { return user.id + ':' + k; }
+  function blobGet(k) { return rawGet(bk(k)); }
+  function blobPut(k, v) { return rawPut(bk(k), v); }
+  function blobDel(k) { return rawDel(bk(k)); }
+  var MEDIA_KEYS = ['avatar', 'video0', 'video1', 'video2'];
 
+  function clearUrls() {
+    if (urls.avatar) URL.revokeObjectURL(urls.avatar);
+    urls.videos.forEach(function (u) { if (u) URL.revokeObjectURL(u); });
+    urls = { avatar: null, videos: [null, null, null] };
+  }
   function loadMedia() {
-    var keys = ['avatar', 'video0', 'video1', 'video2'];
-    return Promise.all(keys.map(blobGet)).then(function (r) {
+    if (!user) return Promise.resolve();
+    var uid = user.id;
+    return Promise.all(MEDIA_KEYS.map(blobGet)).then(function (r) {
+      if (!user || user.id !== uid) return;
+      clearUrls();
       if (r[0]) urls.avatar = URL.createObjectURL(r[0]);
       for (var i = 0; i < 3; i++) if (r[i + 1]) urls.videos[i] = URL.createObjectURL(r[i + 1]);
     });
@@ -129,7 +160,7 @@
     var tabs = STEPS.map(function (st, i) {
       return '<button data-act="go" data-step="' + st + '" class="' + (i < idx ? 'done' : '') + (i === idx ? ' on' : '') + '"' + (i === idx ? ' aria-current="step"' : '') + '>' + STEP_NAMES[st] + '</button>';
     }).join('');
-    return '<div class="bar"><div class="brand">' + LOGO + '<div class="wm">AI FIT<i></i></div><span class="mini">의류 핏 체크</span></div><nav class="tabs" aria-label="진행 단계">' + tabs + '</nav></div>';
+    return '<div class="bar"><div class="brand">' + LOGO + '<div class="wm">AI FIT<i></i></div><span class="mini">' + h(user.nick) + ' 님</span><button class="btn sm" data-act="logout">로그아웃</button></div><nav class="tabs" aria-label="진행 단계">' + tabs + '</nav></div>';
   }
   function footer(prevLabel, nextLabel, opts) {
     opts = opts || {};
@@ -142,6 +173,144 @@
     return '<div class="seg" role="group">' + list.map(function (o) {
       return '<button type="button" data-act="set" data-path="' + path + '" data-val="' + o[0] + '" class="' + (cur === o[0] ? 'on' : '') + '">' + o[1] + '</button>';
     }).join('') + '</div>';
+  }
+
+  /* ---------- 화면: 로그인 ---------- */
+  function blankLogin() { return { mode: 'list', id: null, nick: '', pin: '', pin2: '', gender: 'male', height: '', weight: '', err: '', avatar: null, avatarUrl: null, fails: 0, until: 0 }; }
+  var lg = blankLogin();
+  /* 틀린 PIN 횟수·잠금 시각은 화면을 바꿔도 유지한다 */
+  function resetLogin(mode, id) {
+    if (lg.avatarUrl) URL.revokeObjectURL(lg.avatarUrl);
+    var f = lg.fails, t = lg.until;
+    lg = blankLogin(); lg.fails = f; lg.until = t;
+    if (mode) lg.mode = mode;
+    if (id) lg.id = id;
+  }
+  var thumbs = {};
+  function loadThumbs() {
+    readUsers().forEach(function (u) {
+      if (u.id in thumbs) return;
+      thumbs[u.id] = null;
+      rawGet(u.id + ':avatar').then(function (b) { if (b && u.id in thumbs) { thumbs[u.id] = URL.createObjectURL(b); if (!user) render(); } });
+    });
+  }
+  function clearThumbs() { Object.keys(thumbs).forEach(function (k) { if (thumbs[k]) URL.revokeObjectURL(thumbs[k]); }); thumbs = {}; }
+  function hasLegacy() { try { return !!localStorage.getItem(KEY); } catch (e) { return false; } }
+  function pinField(k, label) {
+    return '<label class="f">' + label + '<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" data-lg="' + k + '" value="' + h(lg[k]) + '"></label>';
+  }
+  function avatarDot(u, big) {
+    var t = thumbs[u.id], cls = 'uav' + (big ? ' big' : '');
+    return t ? '<img class="' + cls + '" alt="" src="' + t + '">' : '<span class="' + cls + '">' + h(String(u.nick).charAt(0)) + '</span>';
+  }
+  function viewLogin() {
+    var users = readUsers(), err = lg.err ? '<div class="warn">' + h(lg.err) + '</div>' : '';
+    var bar = '<div class="bar"><div class="brand">' + LOGO + '<div class="wm">AI FIT<i></i></div><span class="mini">의류 핏 체크</span></div></div>';
+    var u = lg.id ? userById(lg.id) : null, body, foot;
+    if ((lg.mode === 'pin' || lg.mode === 'del') && u) {
+      var del = lg.mode === 'del';
+      body = '<div class="ucard">' + avatarDot(u, true) + '<div><b>' + h(u.nick) + '</b><div class="note">' + (del ? '프로필을 삭제하려면 PIN을 입력하세요' : 'PIN 4자리를 입력하세요') + '</div></div></div>' +
+        pinField('pin', 'PIN') + err +
+        (del ? '<div class="warn">삭제하면 이 프로필의 내 정보, 옷장, 캐릭터 이미지와 영상이 이 기기에서 모두 지워집니다.</div>' : '');
+      foot = '<button class="btn ghost" data-act="lgBack">취소</button><button class="btn p" data-act="' + (del ? 'lgDelOk' : 'lgLogin') + '">' + (del ? '삭제' : '로그인') + '</button>';
+    } else if (lg.mode === 'new') {
+      body = '<div class="sec">새 프로필</div>' +
+        '<label class="f">닉네임<input type="text" maxlength="12" autocomplete="off" data-lg="nick" value="' + h(lg.nick) + '" placeholder="예) 민성"></label>' +
+        '<div class="row2">' + pinField('pin', 'PIN 4자리') + pinField('pin2', 'PIN 확인') + '</div>' +
+        '<div class="sec">내 정보 (나중에 바꿀 수 있어요)</div>' +
+        '<div class="seg" role="group">' + [['male', '남성'], ['female', '여성']].map(function (o) {
+          return '<button type="button" data-act="lgSet" data-k="gender" data-v="' + o[0] + '" class="' + (lg.gender === o[0] ? 'on' : '') + '">' + o[1] + '</button>';
+        }).join('') + '</div>' +
+        '<div class="row2"><label class="f">키<div class="inwrap"><input type="number" inputmode="decimal" data-lg="height" value="' + h(lg.height) + '"><small>cm</small></div></label>' +
+        '<label class="f">몸무게<div class="inwrap"><input type="number" inputmode="decimal" data-lg="weight" value="' + h(lg.weight) + '"><small>kg</small></div></label></div>' +
+        '<div class="sec">내 캐릭터 (선택)</div>' +
+        '<div class="ucard">' + (lg.avatarUrl ? '<img class="uav big" alt="캐릭터 미리보기" src="' + lg.avatarUrl + '">' : '<span class="uav big">?</span>') +
+        '<div><div class="note">만들어 둔 캐릭터(아바타) 이미지를 연결합니다. 동작 영상은 로그인 후 내 정보에서 연결할 수 있어요.</div>' +
+        '<label class="btn sm" style="cursor:pointer;margin-top:6px;display:inline-block">이미지 선택<input type="file" accept="image/*" data-file="lgAvatar" hidden></label></div></div>' +
+        (!users.length && hasLegacy() ? '<div class="note">이 기기에 전에 입력한 정보가 있어 첫 프로필로 옮겨집니다.</div>' : '') + err;
+      foot = (users.length ? '<button class="btn ghost" data-act="lgBack">취소</button>' : '') + '<button class="btn p" data-act="lgCreate">만들고 시작하기</button>';
+    } else {
+      body = HERO + '<div class="sec">' + (users.length ? '프로필 선택' : '시작하기') + '</div>' +
+        (users.length ? '<div class="ulist">' + users.map(function (x) {
+          return '<div class="urow"><button class="ugo" data-act="lgPick" data-id="' + h(x.id) + '">' + avatarDot(x) + '<b>' + h(x.nick) + '</b></button>' +
+            '<button class="btn sm danger" data-act="lgDel" data-id="' + h(x.id) + '" aria-label="' + h(x.nick) + ' 삭제">삭제</button></div>';
+        }).join('') + '</div>' : '<div class="note">닉네임과 PIN으로 프로필을 만들면, 입력한 내 정보와 캐릭터를 다음에 그대로 불러옵니다.</div>') +
+        '<div class="note">프로필과 데이터는 이 기기(브라우저) 안에만 저장되며 서버로 보내지 않습니다. PIN은 같은 기기를 함께 쓸 때 서로 구분하는 잠금입니다.</div>';
+      foot = '<button class="btn p" data-act="lgNew">새 프로필 만들기</button>';
+    }
+    return bar + '<div class="body">' + body + '</div><div class="foot">' + foot + '</div>';
+  }
+  function lgErr(msg) { lg.err = msg; render(); }
+
+  /* 로그인 도입 전 단일 사용자 데이터를 첫 프로필로 옮긴다 */
+  function migrateLegacy() {
+    var old = null;
+    try { var raw = localStorage.getItem(KEY); if (raw) old = Object.assign(blankState(), JSON.parse(raw)); } catch (e) { old = null; }
+    if (!old) return Promise.resolve(null);
+    return Promise.all(MEDIA_KEYS.map(function (k) {
+      return rawGet(k).then(function (b) { return b ? rawPut(bk(k), b).then(function () { return rawDel(k); }) : null; });
+    })).then(function () { try { localStorage.removeItem(KEY); } catch (e) {} return old; }, function () { return old; });
+  }
+
+  function enterApp() {
+    try { localStorage.setItem(CUR_KEY, user.id); } catch (e) {}
+    resetLogin(); lg.fails = 0; lg.until = 0; sheet = null;
+    clearUrls(); render(); window.scrollTo(0, 0);
+    loadMedia().then(render);
+  }
+  function lgCreate() {
+    var users = readUsers(), nick = String(lg.nick || '').trim();
+    if (!nick) return lgErr('닉네임을 입력해 주세요.');
+    if (users.some(function (u) { return u.nick === nick; })) return lgErr('이미 있는 닉네임입니다.');
+    if (!/^\d{4}$/.test(lg.pin)) return lgErr('PIN은 숫자 4자리로 입력해 주세요.');
+    if (lg.pin !== lg.pin2) return lgErr('PIN 확인이 일치하지 않습니다.');
+    var salt = Math.random().toString(36).slice(2, 10);
+    var u = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nick: nick, salt: salt, pin: pinHash(salt, lg.pin), created: Date.now() };
+    var first = !users.length;
+    users.push(u); writeUsers(users);
+    user = u;
+    var info = { gender: lg.gender, height: lg.height, weight: lg.weight }, av = lg.avatar;
+    (first ? migrateLegacy() : Promise.resolve(null)).then(function (old) {
+      state = old || blankState();
+      state.profile.gender = info.gender;
+      if (info.height !== '') state.profile.height = info.height;
+      if (info.weight !== '') state.profile.weight = info.weight;
+      state.step = 'profile';
+      save();
+      return av ? blobPut('avatar', av).catch(function () { alert('캐릭터 이미지를 저장하지 못했습니다. 내 정보에서 다시 연결해 주세요.'); }) : null;
+    }).then(enterApp);
+  }
+  function checkPin(u) {
+    if (Date.now() < lg.until) { lg.pin = ''; lgErr(Math.ceil((lg.until - Date.now()) / 1000) + '초 뒤에 다시 시도해 주세요.'); return false; }
+    if (pinHash(u.salt, lg.pin) === u.pin) return true;
+    lg.fails++; lg.pin = '';
+    if (lg.fails >= 5) { lg.fails = 0; lg.until = Date.now() + 30000; lgErr('PIN이 5번 틀려 30초 동안 잠깁니다.'); }
+    else lgErr('PIN이 맞지 않습니다.');
+    return false;
+  }
+  function lgLogin() {
+    var u = userById(lg.id);
+    if (!u) { resetLogin(); return render(); }
+    if (!checkPin(u)) return;
+    user = u; state = load(); enterApp();
+  }
+  function lgDelOk() {
+    var u = userById(lg.id);
+    if (!u) { resetLogin(); return render(); }
+    if (!checkPin(u)) return;
+    if (!confirm('"' + u.nick + '" 프로필과 데이터를 이 기기에서 삭제할까요? 되돌릴 수 없습니다.')) return;
+    writeUsers(readUsers().filter(function (x) { return x.id !== u.id; }));
+    try { localStorage.removeItem(KEY + ':' + u.id); } catch (e) {}
+    MEDIA_KEYS.forEach(function (k) { rawDel(u.id + ':' + k).catch(function () {}); });
+    if (thumbs[u.id]) URL.revokeObjectURL(thumbs[u.id]);
+    delete thumbs[u.id];
+    resetLogin(); render();
+  }
+  function logout() {
+    try { localStorage.removeItem(CUR_KEY); } catch (e) {}
+    user = null; state = blankState(); sheet = null; openCfg = false;
+    clearUrls(); clearThumbs(); lg = blankLogin();
+    render(); window.scrollTo(0, 0);
   }
 
   /* ---------- 화면: 내 정보 ---------- */
@@ -168,7 +337,7 @@
       '<div class="sec">선호 핏</div>' + seg('profile.pref', p.pref, PREFS) +
       media +
       '<button class="btn" data-act="sample">예시 데이터 불러오기</button>' +
-      '<button class="btn danger" data-act="resetAll">모든 데이터 지우기</button></div>' +
+      '<button class="btn danger" data-act="resetAll">이 프로필 데이터 지우기</button></div>' +
       footer('', '다음: 상의 고르기');
   }
   function mediaRow(kind, label, accept, has) {
@@ -316,7 +485,7 @@
 
   function resultCard(r) {
     var cur = r.current, it = r.garment;
-    if (!cur) return '<div class="card"><div class="h">' + CATS[r.cat] + ' · ' + h(it.name) + '</div><div class="warn">선택한 사이즈 "' + h(r.chosen) + '" 의 실측값이 없습니다.</div></div>';
+    if (!cur) return '<div class="card"><div class="h">' + CATS[r.cat] + ' · ' + h(it.name) + '</div><div class="warn">' + (r.chosen ? '선택한 사이즈 "' + h(r.chosen) + '" 의 실측값이 없습니다.' : '실측값이 입력된 사이즈가 없습니다. 상품의 실측표를 입력해 주세요.') + '</div></div>';
     var p = cur.primary;
     var head = '<div class="h"><span>' + CATS[r.cat] + ' · ' + h(it.name) + ' <span class="sub">' + h(r.chosen) + '</span></span>' +
       (p ? '<span class="grade gk-' + p.gradeKey + '">' + p.grade + ' ' + sgn(p.ease) + p.unit + '</span>' : '') + '</div>';
@@ -409,6 +578,15 @@
   /* ---------- 렌더 ---------- */
   var root = document.getElementById('app');
   function render() {
+    if (!user) {
+      root.className = '';
+      root.innerHTML = viewLogin();
+      loadThumbs();
+      var f = lg.mode !== 'list' && root.querySelector('[data-lg]');
+      if (f) f.focus();
+      return;
+    }
+    if (state.step === 'result' && !E.num(state.profile.height)) state.step = 'confirm';
     var s = state.step, html;
     if (s === 'profile') html = viewProfile();
     else if (s === 'top' || s === 'bottom' || s === 'shoe') html = viewProduct(s);
@@ -456,6 +634,15 @@
   }
 
   var ACT = {
+    lgNew: function () { resetLogin('new'); render(); },
+    lgPick: function (el) { resetLogin('pin', el.dataset.id); render(); },
+    lgDel: function (el) { resetLogin('del', el.dataset.id); render(); },
+    lgBack: function () { resetLogin(); render(); },
+    lgSet: function (el) { lg[el.dataset.k] = el.dataset.v; render(); },
+    lgCreate: lgCreate,
+    lgLogin: lgLogin,
+    lgDelOk: lgDelOk,
+    logout: logout,
     go: function (el) { go(el.dataset.step); },
     next: function () { var i = STEPS.indexOf(state.step); go(STEPS[Math.min(STEPS.length - 1, i + 1)]); },
     prev: function () { var i = STEPS.indexOf(state.step); go(STEPS[Math.max(0, i - 1)]); },
@@ -465,7 +652,7 @@
       var v = el.dataset.val;
       setPath(state, el.dataset.path, v);
       save();
-      if (el.dataset.path === 'profile.gender') { render(); } else render();
+      render();
     },
     pick: function (el) { state.sel[state.step] = { id: el.dataset.id, size: el.dataset.size || null }; save(); render(); },
     new: function (el) { state.draft = blankDraft(el.dataset.cat); render(); },
@@ -516,12 +703,10 @@
       save(); render();
     },
     resetAll: function () {
-      if (!confirm('입력한 내 정보, 옷장, 연결한 아바타와 영상이 모두 지워집니다. 계속할까요?')) return;
+      if (!confirm('이 프로필에 입력한 내 정보, 옷장, 연결한 캐릭터와 영상이 모두 지워집니다. 프로필(닉네임·PIN)은 남습니다. 계속할까요?')) return;
       state = blankState(); save();
-      ['avatar', 'video0', 'video1', 'video2'].forEach(blobDel);
-      if (urls.avatar) URL.revokeObjectURL(urls.avatar);
-      urls.videos.forEach(function (u) { if (u) URL.revokeObjectURL(u); });
-      urls = { avatar: null, videos: [null, null, null] };
+      MEDIA_KEYS.forEach(function (k) { blobDel(k).catch(function () {}); });
+      clearUrls();
       render();
     }
   };
@@ -535,10 +720,21 @@
 
   root.addEventListener('input', function (e) {
     var t = e.target;
+    if (t.dataset.lg) {
+      lg[t.dataset.lg] = t.value;
+      if (t.dataset.lg === 'pin' && lg.mode === 'pin' && /^\d{4}$/.test(t.value)) lgLogin();
+      return;
+    }
     if (t.dataset.path && t.type !== 'checkbox' && t.tagName !== 'SELECT') {
       setPath(state, t.dataset.path, t.value); save();
       if (t.dataset.hint) refreshHints();
     }
+  });
+
+  root.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target.dataset || !e.target.dataset.lg) return;
+    e.preventDefault();
+    if (lg.mode === 'new') lgCreate(); else if (lg.mode === 'pin') lgLogin(); else if (lg.mode === 'del') lgDelOk();
   });
 
   root.addEventListener('change', function (e) {
@@ -553,8 +749,10 @@
       if (!isFinite(v)) { render(); return; }
       if (!state.cfg) state.cfg = { grades: {}, fabric: {} };
       if (parts[0] === 'grades') {
-        var cur = state.cfg.grades[parts[1]] || BASE_CFG.grades[parts[1]].th.slice();
-        cur[Number(parts[2])] = v; state.cfg.grades[parts[1]] = cur;
+        var cur = (state.cfg.grades[parts[1]] || BASE_CFG.grades[parts[1]].th).slice();
+        cur[Number(parts[2])] = v;
+        if (!cur.every(function (x, i) { return i === 0 || x > cur[i - 1]; })) { alert('경계값은 왼쪽부터 커지는 순서여야 합니다.'); render(); return; }
+        state.cfg.grades[parts[1]] = cur;
       } else { state.cfg.fabric[parts[1]] = v; }
       openCfg = true; save(); render();
     } else if (t.dataset.file && t.files && t.files[0]) {
@@ -563,7 +761,10 @@
   });
 
   function handleFile(kind, file) {
-    if (kind === 'draftPhoto') {
+    if (kind === 'lgAvatar') {
+      shrink(file, 1000, 0.92).then(function (b) { if (lg.avatarUrl) URL.revokeObjectURL(lg.avatarUrl); lg.avatar = b; lg.avatarUrl = URL.createObjectURL(b); render(); })
+        .catch(function (err) { alert(err.message); });
+    } else if (kind === 'draftPhoto') {
       shrink(file, 240, 0.8).then(blobToDataUrl).then(function (u) { state.draft.photo = u; save(); render(); }).catch(function (err) { alert(err.message); });
     } else if (kind === 'avatar') {
       shrink(file, 1000, 0.92).then(function (b) { return blobPut('avatar', b).then(function () { if (urls.avatar) URL.revokeObjectURL(urls.avatar); urls.avatar = URL.createObjectURL(b); render(); }); })
