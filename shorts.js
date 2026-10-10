@@ -20,6 +20,23 @@
     ['thigh', '허벅지둘레', 'cm'], ['arm', '팔길이(어깨점~손목)', 'cm'], ['inseam', '다리 안쪽 길이(인심)', 'cm'],
     ['rise', '밑위(앞)', 'cm'], ['foot', '발길이', 'mm']
   ];
+  /* 기본 모델 = 앱에 연결하는 30대 여성 캐릭터. 제작 설정에 숫자가 없어 '중간 키·슬림'을 표준값으로 가정한 것이므로 설정에서 바꿀 수 있다 */
+  var MODEL = { gender: 'female', height: '162', weight: '50' };
+  function sampleCloset() {
+    function sz(label, o) { var r = { label: label }; Object.keys(o).forEach(function (k) { r[k] = String(o[k]); }); return r; }
+    return [
+      { id: 'p1', cat: 'top', name: '예시 쿠팡 초록 카라 티셔츠', measureType: 'circ', fabric: 'normal', photo: '', price: '13900', url: '', isRef: false, refSize: '', sizes: [
+        sz('M', { length: 59, shoulder: 35.5, chest: 88, sleeve: 54 }), sz('L', { length: 60, shoulder: 37, chest: 92, sleeve: 55 }),
+        sz('XL', { length: 61, shoulder: 39.5, chest: 96, sleeve: 56 }), sz('2XL', { length: 62, shoulder: 41, chest: 100, sleeve: 57 }),
+        sz('3XL', { length: 63, shoulder: 43.5, chest: 104, sleeve: 58 }), sz('4XL', { length: 64, shoulder: 45, chest: 108, sleeve: 59 })] },
+      { id: 'p2', cat: 'top', name: '예시 스판 티셔츠', measureType: 'circ', fabric: 'stretch', photo: '', price: '', url: '', isRef: false, refSize: '', sizes: [
+        sz('S', { length: 58, shoulder: 36, chest: 82, sleeve: 19 }), sz('M', { length: 60, shoulder: 38, chest: 88, sleeve: 20 }), sz('L', { length: 62, shoulder: 40, chest: 94, sleeve: 21 })] },
+      { id: 'p3', cat: 'bottom', name: '예시 슬랙스', measureType: 'flat', fabric: 'normal', photo: '', price: '', url: '', isRef: false, refSize: '', sizes: [
+        sz('S', { waist: 34, hip: 45, thigh: 26, rise: 25, inseam: 70 }), sz('M', { waist: 36, hip: 47, thigh: 27, rise: 26, inseam: 72 }), sz('L', { waist: 38, hip: 49, thigh: 28, rise: 27, inseam: 74 })] },
+      { id: 'p4', cat: 'shoe', name: '예시 스니커즈', measureType: '', fabric: 'normal', photo: '', price: '', url: '', isRef: false, refSize: '', sizes: [
+        { label: '230' }, { label: '235' }, { label: '240' }, { label: '245' }] }
+    ];
+  }
   var BASE_CFG = JSON.parse(JSON.stringify(window.FIT_CONFIG));
   var E = window.FitEngine;
 
@@ -165,7 +182,7 @@
   }
 
   /* ---------- 화면: 로그인 ---------- */
-  function blankLogin() { return { mode: 'list', id: null, nick: '', pin: '', pin2: '', gender: 'male', height: '', weight: '', err: '', avatar: null, avatarUrl: null, fails: 0, until: 0 }; }
+  function blankLogin() { return { mode: 'list', id: null, nick: '', pin: '', pin2: '', gender: MODEL.gender, height: MODEL.height, weight: MODEL.weight, err: '', avatar: null, avatarUrl: null, fails: 0, until: 0 }; }
   var lg = blankLogin();
   /* 틀린 PIN 횟수·잠금 시각은 화면을 바꿔도 유지한다 */
   function resetLogin(mode, id) {
@@ -266,6 +283,7 @@
       if (info.height !== '') state.profile.height = info.height;
       if (info.weight !== '') state.profile.weight = info.weight;
       state.step = 'profile';
+      if (!state.closet.length) { state.closet = sampleCloset(); state.seq = 10; }
       save();
       return av ? blobPut('avatar', av).catch(function () { alert('캐릭터 이미지를 저장하지 못했습니다. 내 정보에서 다시 연결해 주세요.'); }) : null;
     }).then(enterApp);
@@ -765,7 +783,7 @@
       '<div class="acts"><button class="btn sm" data-act="logout">프로필 바꾸기</button><button class="btn sm danger" data-act="logout">로그아웃</button></div></div>' +
       '<div class="sec">내 정보 변경</div>' + profileForm() + mediaCard() +
       '<button class="btn" data-act="open" data-name="cfg">등급 기준 보정</button>' +
-      '<button class="btn" data-act="sample">예시 데이터 불러오기</button>' +
+      '<button class="btn" data-act="sample">기본 모델 + 예시 옷으로 맞추기</button>' +
       '<button class="btn danger" data-act="resetAll">이 프로필 데이터 지우기</button>' +
       '<button class="btn p" data-act="closeSheet">완료</button>';
   }
@@ -841,6 +859,13 @@
   };
   ACT.pick = function (el) { state.sel[el.dataset.cat] = { id: el.dataset.id, size: el.dataset.size || null }; save(); render(); };
   ACT.clearTryon = function (el) { dropTryon(el.dataset.id); render(); };
+  ACT.sample = function () {
+    if ((state.closet.length || state.profile.height) && !confirm('내 정보와 옷장이 기본 모델(여성 ' + MODEL.height + 'cm/' + MODEL.weight + 'kg)과 예시 옷으로 바뀝니다. 계속할까요?')) return;
+    state.closet.forEach(function (x) { dropTryon(x.id); });
+    state.profile = { gender: MODEL.gender, height: MODEL.height, weight: MODEL.weight, pref: 'fit', m: {} };
+    state.closet = sampleCloset(); state.sel = {}; state.seq = 10; state.feel = {}; state.draft = null;
+    save(); render();
+  };
   ACT.clearSel = function (el) { delete state.sel[el.dataset.cat]; save(); render(); };
   var _new = ACT.new, _edit = ACT.edit, _save = ACT.saveDraft, _logout = ACT.logout;
   ACT.new = function (el) { editCat = el.dataset.cat; ocr = { busy: false, msg: '', ok: false }; _new(el); openSheet('edit'); };
