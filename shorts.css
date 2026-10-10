@@ -11,3 +11,9 @@
 .rrail button svg{width:42px;height:42px;padding:10px}
 .rrail button.on svg{background:#fff;color:#141414}
 .rrail button.has svg{box-shadow:0 0 0 2px var(--accent)}
+
+.tryon{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.tryon .btn.sm{padding:4px 8px;font-size:11px}
+.rmedia img.worn{width:100%;height:100%;object-fit:cover;object-position:top}
+.sheet > *{flex-shrink:0}
+.hs .tile .timg{flex:none}

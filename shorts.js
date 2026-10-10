@@ -53,7 +53,7 @@
   var user = (function () { try { return userById(localStorage.getItem(CUR_KEY)); } catch (e) { return null; } })();
 
   var state = user ? load() : blankState();
-  var urls = { avatar: null, videos: [null, null, null] };
+  var urls = { avatar: null, videos: [null, null, null], tryon: {} };
   var openCfg = false;
   var root = document.getElementById('app');
 
@@ -102,16 +102,19 @@
   function clearUrls() {
     if (urls.avatar) URL.revokeObjectURL(urls.avatar);
     urls.videos.forEach(function (u) { if (u) URL.revokeObjectURL(u); });
-    urls = { avatar: null, videos: [null, null, null] };
+    Object.keys(urls.tryon).forEach(function (k) { if (urls.tryon[k]) URL.revokeObjectURL(urls.tryon[k]); });
+    urls = { avatar: null, videos: [null, null, null], tryon: {} };
   }
   function loadMedia() {
     if (!user) return Promise.resolve();
     var uid = user.id;
-    return Promise.all(MEDIA_KEYS.map(blobGet)).then(function (r) {
+    var ids = state.closet.map(function (x) { return x.id; });
+    return Promise.all(MEDIA_KEYS.map(blobGet).concat(ids.map(function (id) { return blobGet('tryon:' + id); }))).then(function (r) {
       if (!user || user.id !== uid) return;
       clearUrls();
       if (r[0]) urls.avatar = URL.createObjectURL(r[0]);
       for (var i = 0; i < 3; i++) if (r[i + 1]) urls.videos[i] = URL.createObjectURL(r[i + 1]);
+      ids.forEach(function (id, j) { var b = r[4 + j]; if (b) urls.tryon[id] = URL.createObjectURL(b); });
     });
   }
 
@@ -396,9 +399,19 @@
     return '<div class="scale" role="img" aria-label="' + h(p.label) + ' 여유 ' + sgn(p.ease) + p.unit + ', ' + h(p.grade) + '">' + w.map(function (x) { return '<i style="flex:' + x + '"></i>'; }).join('') + '<u style="left:' + pos + '%"></u></div>';
   }
 
+  /* 고른 옷(상의→하의→신발 순) 중 '입은 모습' 이미지가 연결된 첫 번째 */
+  function wornImage() {
+    var c = ['top', 'bottom', 'shoe'];
+    for (var i = 0; i < c.length; i++) {
+      var s = state.sel[c[i]], it = s && item(s.id);
+      if (it && urls.tryon[it.id]) return { cat: c[i], name: it.name, url: urls.tryon[it.id] };
+    }
+    return null;
+  }
   function reelMedia() {
-    var m = state.motion, inner, badge = '';
-    if (urls.videos[m]) inner = '<video src="' + urls.videos[m] + '" loop playsinline autoplay muted></video>';
+    var m = state.motion, inner, badge = '', worn = wornImage();
+    if (worn) { inner = '<img class="worn" alt="' + h(worn.name) + ' 입은 모습" src="' + worn.url + '">'; badge = CATS[worn.cat] + ' · ' + worn.name + ' 입은 모습'; }
+    else if (urls.videos[m]) inner = '<video src="' + urls.videos[m] + '" loop playsinline autoplay muted></video>';
     else if (urls.avatar) { inner = '<img alt="내 아바타" src="' + urls.avatar + '">'; badge = '이 동작의 영상이 없어 이미지를 표시합니다'; }
     else {
       inner = '<svg viewBox="0 0 120 260" role="img" aria-label="아바타 자리 표시"><circle cx="60" cy="26" r="17" fill="var(--skin)"/><rect x="54" y="40" width="12" height="10" fill="var(--skin)"/>' +
@@ -549,6 +562,7 @@
       var it = item(el.dataset.id);
       if (!it || !confirm('"' + it.name + '" 을(를) 내 옷장에서 삭제할까요?')) return;
       state.closet = state.closet.filter(function (x) { return x.id !== it.id; });
+      dropTryon(it.id);
       Object.keys(state.sel).forEach(function (c) { if (state.sel[c] && state.sel[c].id === it.id) delete state.sel[c]; });
       save(); render();
     },
@@ -588,6 +602,7 @@
     },
     resetAll: function () {
       if (!confirm('이 프로필에 입력한 내 정보, 옷장, 연결한 캐릭터와 영상이 모두 지워집니다. 프로필(닉네임·PIN)은 남습니다. 계속할까요?')) return;
+      state.closet.forEach(function (x) { dropTryon(x.id); });
       state = blankState(); save();
       MEDIA_KEYS.forEach(function (k) { blobDel(k).catch(function () {}); });
       clearUrls();
@@ -637,10 +652,20 @@
     }
   });
 
+  function dropTryon(id) {
+    if (urls.tryon[id]) URL.revokeObjectURL(urls.tryon[id]);
+    delete urls.tryon[id];
+    blobDel('tryon:' + id).catch(function () {});
+  }
   function handleFile(kind, file) {
     if (kind === 'lgAvatar') {
       shrink(file, 1000, 0.92).then(function (b) { if (lg.avatarUrl) URL.revokeObjectURL(lg.avatarUrl); lg.avatar = b; lg.avatarUrl = URL.createObjectURL(b); render(); })
         .catch(function (err) { alert(err.message); });
+    } else if (kind.indexOf('tryon:') === 0) {
+      var tid = kind.slice(6);
+      if (!item(tid)) return;
+      shrink(file, 1400, 0.9).then(function (b) { return blobPut(kind, b).then(function () { if (urls.tryon[tid]) URL.revokeObjectURL(urls.tryon[tid]); urls.tryon[tid] = URL.createObjectURL(b); render(); }); })
+        .catch(function () { alert('입은 모습 이미지를 저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.'); });
     } else if (kind === 'sizeCap') {
       var d0 = state.draft;
       if (!d0 || !window.SizeOcr) return;
@@ -703,7 +728,13 @@
     return '<div class="tile' + (isSel ? ' sel' : '') + '"><div class="timg">' + img +
       (it.isRef ? '<span class="tbadge">기준 옷</span>' : '') + (isSel ? '<span class="tcheck">✓</span>' : '') +
       '<span class="tact"><button class="btn sm" data-act="edit" data-id="' + it.id + '" aria-label="수정">수정</button><button class="btn sm danger" data-act="delItem" data-id="' + it.id + '" aria-label="삭제">삭제</button></span></div>' +
-      '<div class="tname">' + h(it.name) + '</div>' + (priceText(it.price) ? '<div class="price">' + priceText(it.price) + '</div>' : '') + '<div class="sub">' + meta + '</div><div class="chips">' + chips + '</div>' + buyLink(it, 'buy') + '</div>';
+      '<div class="tname">' + h(it.name) + '</div>' + (priceText(it.price) ? '<div class="price">' + priceText(it.price) + '</div>' : '') + '<div class="sub">' + meta + '</div><div class="chips">' + chips + '</div>' + tryonRow(it) + buyLink(it, 'buy') + '</div>';
+  }
+
+  function tryonRow(it) {
+    var has = !!urls.tryon[it.id];
+    return '<div class="tryon"><label class="btn sm" style="cursor:pointer">' + (has ? '입은 모습 바꾸기' : '입은 모습 올리기') + '<input type="file" accept="image/*" data-file="tryon:' + it.id + '" hidden></label>' +
+      (has ? '<button class="btn sm danger" data-act="clearTryon" data-id="' + it.id + '">삭제</button>' : '') + '</div>';
   }
 
   function sheetInner(ev) {
@@ -809,6 +840,7 @@
     else { sheet = null; state.draft = null; render(); }
   };
   ACT.pick = function (el) { state.sel[el.dataset.cat] = { id: el.dataset.id, size: el.dataset.size || null }; save(); render(); };
+  ACT.clearTryon = function (el) { dropTryon(el.dataset.id); render(); };
   ACT.clearSel = function (el) { delete state.sel[el.dataset.cat]; save(); render(); };
   var _new = ACT.new, _edit = ACT.edit, _save = ACT.saveDraft, _logout = ACT.logout;
   ACT.new = function (el) { editCat = el.dataset.cat; ocr = { busy: false, msg: '', ok: false }; _new(el); openSheet('edit'); };
