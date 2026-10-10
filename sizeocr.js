@@ -7,8 +7,8 @@
   var SIZE_WORDS = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|F|FREE|FR|프리|프리사이즈)$/i;
   /* 항목별 키워드(공백 제거 후 포함 여부). 위에서부터 먼저 맞는 항목에 줄을 배정한다 */
   var KEYS = {
-    top: [['chest', ['가슴', '흉']], ['shoulder', ['어깨']], ['sleeve', ['소매', '팔길이', '팔']], ['length', ['총장', '총기장', '기장', '길이']]],
-    bottom: [['waist', ['허리']], ['hip', ['엉덩이', '힙']], ['thigh', ['허벅지']], ['rise', ['밑위']], ['inseam', ['인심', '안쪽', '총장', '기장', '길이']]],
+    top: [['chest', ['가슴', '가슬', '기슴', '가습', '흉']], ['shoulder', ['어깨', '어께', '어메', '어꺠']], ['sleeve', ['소매', '소메', '팔길이', '팔']], ['length', ['총장', '총기장', '기장', '총길이', '좋길이', '길이']]],
+    bottom: [['waist', ['허리', '하리']], ['hip', ['엉덩이', '힙']], ['thigh', ['허벅지', '허박지']], ['rise', ['밑위', '밑우']], ['inseam', ['인심', '안쪽', '총장', '기장', '총길이', '길이']]],
     shoe: [['inner', ['안쪽', '안길이', '발길이', '내부']]]
   };
   var NUM = /\d+(?:\.\d+)?/g;
@@ -21,8 +21,21 @@
 
   /* 사이즈가 세로, 항목이 가로인 표 (쿠팡에 흔함): 머리줄의 항목 순서대로 아래 줄 숫자를 읽는다 */
   function parseColumns(lines, cat) {
-    var keys = KEYS[cat] || [], hi = -1, order = [];
-    for (var i = 0; i < lines.length && hi < 0; i++) {
+    var keys = KEYS[cat] || [], best = null;
+    function rowsAfter(hi, order) {
+      var out = [];
+      for (var j = hi + 1; j < lines.length; j++) {
+        var m = fixNum(lines[j]).normalize('NFKC').match(/^\W*((?:[2-4]?XL|XXL|XXXL|XXS|XS|S|M|L|F|FREE))\b(.*)$/i);
+        if (!m) continue;
+        var n = nums(m[2].replace(/\d+\s*[-~]\s*\d+/g, ' ')).filter(function (x) { return x > 0 && x < 300; });
+        if (n.length < order.length) continue;
+        var rec = { label: m[1].toUpperCase() };
+        order.forEach(function (f, c) { rec[f] = String(n[c]); });
+        out.push(rec);
+      }
+      return out;
+    }
+    for (var i = 0; i < lines.length; i++) {
       var sq = squeeze(lines[i]), hits = [];
       keys.forEach(function (k) {
         k[1].slice().sort(function (a, b) { return b.length - a.length; }).some(function (w) {
@@ -33,20 +46,80 @@
           return true;
         });
       });
-      if (hits.length >= 2) { hi = i; order = hits.sort(function (a, b) { return a.p - b.p; }).map(function (x) { return x.f; }); }
+      if (hits.length < 2) continue;
+      var order = hits.sort(function (a, b) { return a.p - b.p; }).map(function (x) { return x.f; });
+      var out = rowsAfter(i, order), score = out.length * order.length;
+      if (out.length && (!best || score > best.score)) best = { score: score, sizes: out, found: order.length };
     }
-    if (hi < 0) return null;
-    var out = [];
-    for (var j = hi + 1; j < lines.length; j++) {
-      var m = fixNum(lines[j]).normalize('NFKC').match(/^\W*((?:[2-4]?XL|XXL|XXXL|XXS|XS|S|M|L|F|FREE))\b(.*)$/i);
-      if (!m) continue;
-      var n = nums(m[2].replace(/\d+\s*[-~]\s*\d+/g, ' ')).filter(function (x) { return x > 0 && x < 300; });
-      if (n.length < order.length) continue;
-      var rec = { label: m[1].toUpperCase() };
-      order.forEach(function (f, c) { rec[f] = String(n[c]); });
-      out.push(rec);
+    return best ? { sizes: best.sizes, found: best.found } : null;
+  }
+
+  /* 한 글자만 틀리게 읽힌 값(4→1, 5→3 등)을 같은 열의 이웃 값 흐름에 맞춰 고친다. 고친 칸은 알려 주고 사람이 확인한다 */
+  function median(a) { var b = a.slice().sort(function (x, y) { return x - y; }); return b.length ? b[Math.floor(b.length / 2)] : 0; }
+  var PLAUSIBLE = { chest: [30, 160], shoulder: [25, 70], length: [30, 120], sleeve: [8, 80], waist: [25, 160], hip: [25, 160], thigh: [15, 90], rise: [15, 50], inseam: [40, 100] };
+  /* 값 목록에서 '믿을 수 있는 칸': 말이 되는 범위 안이고 사이즈가 커질수록 커지는 가장 긴 열 */
+  function trustedCells(v, f) {
+    var rg = PLAUSIBLE[f] || [1, 300], idx = [];
+    v.forEach(function (x, i) { if (x >= rg[0] && x <= rg[1]) idx.push(i); });
+    var len = {}, prev = {}, best = null;
+    idx.forEach(function (i) {
+      len[i] = 1; prev[i] = null;
+      idx.forEach(function (j) { if (j < i && v[j] <= v[i] && len[j] + 1 > len[i]) { len[i] = len[j] + 1; prev[i] = j; } });
+      if (best == null || len[i] > len[best]) best = i;
+    });
+    var ok = v.map(function () { return false; });
+    for (var k = best; k != null; k = prev[k]) ok[k] = true;
+    return ok;
+  }
+  /* 믿는 칸들로 i번째 칸의 기대값(이웃 사이 보간, 끝이면 추세 연장). self=true 면 자기 자신은 빼고 계산 */
+  function expectedAt(v, i, ok) {
+    var L = [], R = [], k;
+    for (k = i - 1; k >= 0 && L.length < 2; k--) if (ok[k]) L.push(k);
+    for (k = i + 1; k < v.length && R.length < 2; k++) if (ok[k]) R.push(k);
+    if (L.length && R.length) return v[L[0]] + (v[R[0]] - v[L[0]]) * (i - L[0]) / (R[0] - L[0]);
+    if (L.length === 2) return v[L[0]] + (v[L[0]] - v[L[1]]) / (L[0] - L[1]) * (i - L[0]);
+    if (R.length === 2) return v[R[0]] - (v[R[1]] - v[R[0]]) / (R[1] - R[0]) * (R[0] - i);
+    return null;
+  }
+  function candidates(str) {
+    var out = {}, s = String(str);
+    for (var k = 0; k < s.length; k++) {
+      if (s[k] === '.') continue;
+      for (var d = 0; d <= 9; d++) out[s.slice(0, k) + d + s.slice(k + 1)] = 1;
     }
-    return out.length ? { sizes: out, found: order.length } : null;
+    if (s.length <= 2 && s.indexOf('.') < 0) for (var e = 1; e <= 9; e++) out[e + s] = 1;
+    return Object.keys(out).filter(function (x) { return Number(x) > 0; });
+  }
+  function repair(sizes) {
+    var fixed = [], fields = {};
+    sizes.forEach(function (r) { Object.keys(r).forEach(function (k) { if (k !== 'label') fields[k] = 1; }); });
+    Object.keys(fields).forEach(function (f) {
+      if (sizes.length < 4) return;
+      var v = sizes.map(function (r) { return Number(r[f]); }), ok = trustedCells(v, f), i;
+      var steps = []; for (i = 1; i < v.length; i++) if (ok[i] && ok[i - 1] && v[i] >= v[i - 1]) steps.push(v[i] - v[i - 1]);
+      var step = Math.max(median(steps), 0.5), thr = Math.max(1.5, 1.8 * step);
+      /* 믿는 칸이라도 이웃들이 만든 흐름에서 너무 벗어나면(예: 54가 51로 읽힘) 의심 칸으로 돌린다 */
+      var out = ok.slice();
+      for (i = 0; i < v.length; i++) {
+        if (!ok[i]) continue;
+        var tmp = ok.slice(); tmp[i] = false;
+        var ex0 = expectedAt(v, i, tmp), edge = i === 0 || i === v.length - 1;
+        if (ex0 != null && Math.abs(v[i] - ex0) > thr * (edge ? 1.5 : 1)) out[i] = false;
+      }
+      ok = out;
+      for (i = 0; i < v.length; i++) {
+        if (ok[i]) continue;
+        var ex = expectedAt(v, i, ok);
+        if (ex == null) continue;
+        var bestC = null, bestD = 1e9;
+        candidates(sizes[i][f]).forEach(function (c) { var d = Math.abs(Number(c) - ex); if (d < bestD) { bestD = d; bestC = c; } });
+        if (bestC != null && bestD <= Math.max(1.2, 0.6 * step)) {
+          if (Number(bestC) !== v[i]) fixed.push(sizes[i].label + ' ' + f + ' ' + sizes[i][f] + '→' + bestC);
+          sizes[i][f] = bestC; v[i] = Number(bestC); ok[i] = true;
+        }
+      }
+    });
+    return fixed;
   }
 
   /* 사이즈가 커지면 값도 커져야 한다: 이웃과 어긋난 칸을 찾아 알려 준다 */
@@ -68,7 +141,8 @@
     if (cat !== 'shoe') {
       var col = parseColumns(lines, cat), all = lines.join('').replace(/\s+/g, '');
       if (col) var big = col.sizes.some(function (r) { return Number(r.chest || r.waist || r.hip || 0) > 70; });
-      return { sizes: col.sizes, found: col.found, circ: (big || /둘레/.test(all)) && !/단면/.test(all), bad: suspect(col.sizes) };
+      var fixed = repair(col.sizes);
+      return { sizes: col.sizes, found: col.found, circ: !!big || (/둘레|물레/.test(all) && !/단면/.test(all)), bad: suspect(col.sizes), fixed: fixed };
     }
     var keys = KEYS[cat] || [], used = {}, rows = {}, circ = false, flat = false;
 
@@ -194,6 +268,18 @@
       function (e) { if (worker) worker.terminate(); throw e; });
   }
 
-  root.SizeOcr = { parse: parse, recognize: recognize };
+  /* 사이즈표 글자를 보고 상의/하의/신발을 짐작한다. 키워드가 가장 많이 나온 쪽, 없으면 신발 사이즈(mm) 숫자 여부, 그래도 모르면 상의 */
+  function detectCat(text) {
+    var sq = squeeze(text);
+    function cnt(words) { return words.reduce(function (n, w) { return n + (sq.indexOf(w) >= 0 ? 1 : 0); }, 0); }
+    var top = cnt(['가슴', '어깨', '소매', '흉', '팔길이']), bottom = cnt(['허리', '엉덩이', '허벅지', '밑위', '인심', '힙', '밑단']);
+    if (bottom > top) return 'bottom';
+    if (top > 0) return 'top';
+    var lines = String(text || '').split(/\r?\n/);
+    var shoe = lines.some(function (l) { return nums(l).filter(function (x) { return x >= 200 && x <= 330 && x % 5 === 0; }).length >= 3; });
+    return shoe ? 'shoe' : 'top';
+  }
+
+  root.SizeOcr = { parse: parse, recognize: recognize, detectCat: detectCat };
   if (typeof module !== 'undefined') module.exports = root.SizeOcr;
 })(typeof window !== 'undefined' ? window : globalThis);

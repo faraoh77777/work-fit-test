@@ -20,8 +20,10 @@
 
 /* 기본 캐릭터(체형·얼굴 바꾸기) */
 .rmedia.figbg{background:linear-gradient(#ababad,#c3c4c9);overflow:hidden}
-.fig{position:relative;flex:none;height:100%;aspect-ratio:864/1536;transform-origin:50% 100%}
-.rmedia .fig>img{display:block;width:100%;height:100%;max-width:none;max-height:none;object-fit:fill}
+.fig{position:relative;flex:none;height:100%;aspect-ratio:864/1536}
+.fig .fbody{position:absolute;inset:0;transform-origin:50% 100%}
+.rmedia .fig .fbody>img{display:block;width:100%;height:100%;max-width:none;max-height:none;object-fit:fill}
+.fig .gsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .fig .face{position:absolute;left:50.6%;top:14%;width:17.5%;height:13%;transform:translate(-50%,-50%);border-radius:50%;overflow:hidden;-webkit-mask-image:radial-gradient(ellipse at center,#000 52%,transparent 74%);mask-image:radial-gradient(ellipse at center,#000 52%,transparent 74%)}
 .rmedia .fig .face img{display:block;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover}
 details.adv>summary{cursor:pointer;list-style:none;padding:2px 0}
@@ -32,3 +34,8 @@ details.adv[open]>summary{margin-bottom:8px}
 .rcap{pointer-events:none}
 .rcap .fchip,.rcap a,.rcap button{pointer-events:auto}
 .rrail{z-index:3}
+
+.rconc{display:block;width:100%;text-align:left;background:none;border:0;color:#fff;font:inherit;font-size:24px;font-weight:800;line-height:1.2;text-shadow:0 1px 8px rgba(0,0,0,.65);padding:0;margin:2px 0 8px;cursor:pointer;pointer-events:auto}
+.rconc small{display:block;font-size:12px;font-weight:600;opacity:.9;margin-top:2px}
+.bigbtn{display:flex;align-items:center;justify-content:center;gap:10px;padding:20px;font-size:17px;font-weight:700;border-radius:14px;background:#141414;color:#fff;cursor:pointer}
+.bigbtn svg{width:24px;height:24px}

@@ -1,15 +1,17 @@
-// AI FIT 입혀 보기: 기본 캐릭터 + 상품 사진 → 그 옷을 입은 모습 (OpenAI 이미지 편집)
-// 키는 Supabase Secrets 에만 둔다. 앱(GitHub Pages)에는 이 함수 주소와 공개용 anon 키만 들어간다.
+// AI FIT 입혀 보기: 기본 캐릭터 + 상품 사진 → 그 옷을 입은 모습
+// 이미지 생성은 TopView API 를 쓴다. 키(TOPVIEW_UID, TOPVIEW_API_KEY)는 Supabase Secrets 에만 둔다.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-const MODEL = Deno.env.get("OPENAI_IMAGE_MODEL") ?? "gpt-image-1";
-const QUALITY = Deno.env.get("OPENAI_IMAGE_QUALITY") ?? "medium";
+const TV_UID = Deno.env.get("TOPVIEW_UID") ?? "";
+const TV_KEY = Deno.env.get("TOPVIEW_API_KEY") ?? "";
+const TV_MODEL = Deno.env.get("TOPVIEW_IMAGE_MODEL") ?? "GPT Image 2";
+const TV_BASE = "https://api.topview.ai";
 const AVATAR_URL = Deno.env.get("AVATAR_URL") ?? "https://faraoh77777.github.io/work-fit-test/assets/avatar_default.jpg";
 const DEV_LIMIT = Number(Deno.env.get("DAILY_LIMIT") ?? "5");
 const GLOBAL_LIMIT = Number(Deno.env.get("GLOBAL_DAILY_LIMIT") ?? "100");
 const ALLOWED = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://faraoh77777.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",");
 const MAX_B64 = 7_000_000; // 상품 사진 base64 길이 상한(약 5MB)
+const POLL_MS = 3000, POLL_MAX_MS = 140_000;
 
 const PROMPTS: Record<string, string> = {
   top: "Image 1 is a full-body photo of a woman standing. Image 2 is a product photo of a top. Edit image 1 so she wears exactly the top shown in image 2 (same color, collar, pattern, sleeve length and fit) instead of her current top.",
@@ -30,24 +32,92 @@ function cors(req: Request) {
 const json = (req: Request, status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors(req), "Content-Type": "application/json" } });
 
-function b64ToBlob(b64: string, type: string) {
+function b64ToBytes(b64: string) {
   const bin = atob(b64), u = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-  return new Blob([u], { type });
+  return u;
+}
+function bytesToB64(u: Uint8Array) {
+  let s = ""; const step = 0x8000;
+  for (let i = 0; i < u.length; i += step) s += String.fromCharCode(...u.subarray(i, i + step));
+  return btoa(s);
+}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/* ---------------- TopView ---------------- */
+const tvHeaders = () => ({ "Topview-Uid": TV_UID, Authorization: "Bearer " + TV_KEY });
+async function tvGet(path: string, params: Record<string, string>) {
+  const r = await fetch(TV_BASE + path + "?" + new URLSearchParams(params), { headers: tvHeaders() });
+  const d = await r.json();
+  if (!r.ok || String(d.code ?? "") !== "200") throw new Error("topview get " + path + " " + r.status + " " + JSON.stringify(d).slice(0, 300));
+  return d.result ?? d;
+}
+async function tvPost(path: string, body: unknown) {
+  const r = await fetch(TV_BASE + path, { method: "POST", headers: { ...tvHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok || String(d.code ?? "") !== "200") throw new Error("topview post " + path + " " + r.status + " " + JSON.stringify(d).slice(0, 300));
+  return d.result ?? d;
+}
+async function tvUpload(bytes: Uint8Array, ext: string, mime: string) {
+  const cred = await tvGet("/v1/upload/credential", { format: ext, needAccelerateUrl: "" });
+  const put = await fetch(cred.uploadUrl, { method: "PUT", headers: { "Content-Type": mime }, body: bytes });
+  if (!put.ok) throw new Error("topview put " + put.status);
+  const chk = await tvGet("/v1/upload/check", { fileId: cred.fileId });
+  if (chk !== true && String(chk) !== "true") throw new Error("topview upload check failed");
+  return String(cred.fileId);
+}
+function findImageUrl(o: unknown): string {
+  if (!o) return "";
+  if (typeof o === "string") return /^https?:\/\/\S+/.test(o) && /(\.(png|jpe?g|webp)(\?|$)|filePath)/i.test(o) ? o : "";
+  if (Array.isArray(o)) { for (const x of o) { const u = findImageUrl(x); if (u) return u; } return ""; }
+  if (typeof o === "object") {
+    const rec = o as Record<string, unknown>;
+    for (const k of ["filePath", "url", "imageUrl", "fileUrl"]) { const v = rec[k]; if (typeof v === "string" && /^https?:\/\//.test(v)) return v; }
+    for (const v of Object.values(rec)) { const u = findImageUrl(v); if (u) return u; }
+  }
+  return "";
+}
+async function generateTopview(cat: string, garmentBytes: Uint8Array, garmentExt: string, garmentMime: string) {
+  const av = await fetch(AVATAR_URL);
+  if (!av.ok) throw new Error("avatar");
+  const avBytes = new Uint8Array(await av.arrayBuffer());
+  const [avId, gId] = await Promise.all([tvUpload(avBytes, "jpg", "image/jpeg"), tvUpload(garmentBytes, garmentExt, garmentMime)]);
+  const sub = await tvPost("/v1/common_task/image_edit/task/submit", {
+    model: TV_MODEL, prompt: PROMPTS[cat] + KEEP, aspectRatio: "9:16", resolution: "1K", generateCount: 1, inputImageFileIds: [avId, gId],
+  });
+  const taskId = sub.taskId;
+  if (!taskId) throw new Error("topview no taskId " + JSON.stringify(sub).slice(0, 200));
+  const t0 = Date.now();
+  while (Date.now() - t0 < POLL_MAX_MS) {
+    await sleep(POLL_MS);
+    const q = await tvGet("/v1/common_task/image_edit/task/query", { taskId });
+    const st = String(q.status ?? "").toLowerCase();
+    if (st === "success") {
+      const url = findImageUrl(q);
+      if (!url) throw new Error("topview no image url " + JSON.stringify(q).slice(0, 300));
+      const img = await fetch(url);
+      if (!img.ok) throw new Error("topview download " + img.status);
+      const mime = img.headers.get("content-type")?.split(";")[0] || "image/png";
+      return { image: bytesToB64(new Uint8Array(await img.arrayBuffer())), mime };
+    }
+    if (st === "failed" || st === "fail") throw new Error("topview task failed " + String(q.errorMsg ?? ""));
+  }
+  throw new Error("topview timeout");
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(req) });
   if (req.method !== "POST") return json(req, 405, { error: "POST 만 가능합니다." });
-  if (!OPENAI_API_KEY) return json(req, 500, { error: "서버에 이미지 생성 키가 설정되지 않았습니다." });
+  if (!(TV_UID && TV_KEY)) return json(req, 500, { error: "서버에 이미지 생성 키가 설정되지 않았습니다." });
 
-  let body: { device?: string; cat?: string; garment?: string; mime?: string };
+  let body: { device?: string; cat?: string; garment?: string };
   try { body = await req.json(); } catch { return json(req, 400, { error: "요청 형식이 올바르지 않습니다." }); }
   const device = String(body.device ?? ""), cat = String(body.cat ?? "");
   let garment = String(body.garment ?? "");
   const m = garment.match(/^data:(image\/(?:jpeg|png|webp));base64,(.*)$/);
   let mime = "image/jpeg";
   if (m) { mime = m[1]; garment = m[2]; }
+  const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(device)) return json(req, 400, { error: "기기 식별자가 올바르지 않습니다." });
   if (!PROMPTS[cat]) return json(req, 400, { error: "옷 종류가 올바르지 않습니다." });
   if (!garment || garment.length > MAX_B64) return json(req, 400, { error: "상품 사진이 없거나 너무 큽니다." });
@@ -56,30 +126,14 @@ Deno.serve(async (req) => {
   const take = await sb.rpc("tryon_take", { p_device: device, p_dev_limit: DEV_LIMIT, p_global_limit: GLOBAL_LIMIT });
   if (take.error) return json(req, 500, { error: "사용량 확인에 실패했습니다." });
   if (!take.data) return json(req, 429, { error: "오늘 입혀 보기 횟수를 모두 썼습니다. 내일 다시 이용해 주세요." });
-  const refund = () => sb.rpc("tryon_refund", { p_device: device });
 
   try {
-    const av = await fetch(AVATAR_URL);
-    if (!av.ok) throw new Error("avatar");
-    const avBlob = new Blob([await av.arrayBuffer()], { type: "image/jpeg" });
-
-    const fd = new FormData();
-    fd.append("model", MODEL);
-    fd.append("prompt", PROMPTS[cat] + KEEP);
-    fd.append("size", "1024x1536");
-    fd.append("quality", QUALITY);
-    fd.append("n", "1");
-    fd.append("image[]", avBlob, "avatar.jpg");
-    fd.append("image[]", b64ToBlob(garment, mime), "garment." + (mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg"));
-
-    const r = await fetch("https://api.openai.com/v1/images/edits", { method: "POST", headers: { Authorization: "Bearer " + OPENAI_API_KEY }, body: fd });
-    if (!r.ok) { console.error("openai", r.status, (await r.text()).slice(0, 300)); throw new Error("openai"); }
-    const j = await r.json();
-    const b64 = j?.data?.[0]?.b64_json;
-    if (!b64) throw new Error("empty");
-    return json(req, 200, { image: b64, mime: "image/png" });
-  } catch (_e) {
-    await refund();
+    const bytes = b64ToBytes(garment);
+    const out = await generateTopview(cat, bytes, ext, mime);
+    return json(req, 200, out);
+  } catch (e) {
+    console.error("generate failed:", (e as Error).message);
+    await sb.rpc("tryon_refund", { p_device: device });
     return json(req, 502, { error: "이미지를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요. (횟수는 차감되지 않았습니다)" });
   }
 });

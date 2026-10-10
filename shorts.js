@@ -377,8 +377,8 @@
   function basicForm() {
     var p = state.profile;
     return seg('profile.gender', p.gender, [['male', '남성'], ['female', '여성']]) +
-      '<div class="row2"><label class="f">키<div class="inwrap"><input type="number" inputmode="decimal" id="in-height" data-path="profile.height" value="' + h(p.height) + '"><small>cm</small></div></label>' +
-      '<label class="f">몸무게<div class="inwrap"><input type="number" inputmode="decimal" id="in-weight" data-path="profile.weight" value="' + h(p.weight) + '"><small>kg</small></div></label></div>';
+      '<div class="row2"><label class="f">키<div class="inwrap"><input type="number" inputmode="decimal" id="in-height" data-path="profile.height" data-hint="1" value="' + h(p.height) + '"><small>cm</small></div></label>' +
+      '<label class="f">몸무게<div class="inwrap"><input type="number" inputmode="decimal" id="in-weight" data-path="profile.weight" data-hint="1" value="' + h(p.weight) + '"><small>kg</small></div></label></div>';
   }
   function faceRow() {
     var has = !!urls.face;
@@ -387,7 +387,7 @@
       (has ? '<button class="btn sm danger" data-act="clearFile" data-kind="face">되돌리기</button>' : '') + '</span></div>' +
       '<div class="note">얼굴이 크게 나온 정면 사진이 잘 맞습니다. 사진은 이 기기 안에만 저장되고 밖으로 나가지 않습니다.</div>';
   }
-  function advForm() {
+  function advForm(auto) {
     var p = state.profile, body = E.bodyOf(p, cfgNow());
     var rows = MFIELDS.map(function (f) {
       var v = p.m[f[0]] == null ? '' : p.m[f[0]], est = body.vals[f[0]];
@@ -395,7 +395,8 @@
         '<div class="inwrap"><input type="number" inputmode="decimal" step="0.1" id="m-' + f[0] + '" data-path="profile.m.' + f[0] + '" data-hint="' + f[0] + '" value="' + h(v) + '" placeholder="' + (est != null ? est : '') + '" aria-label="' + f[1] + '"><small>' + f[2] + '</small></div>' +
         '<span id="tag-' + f[0] + '">' + (v !== '' ? srcTag('real') : (est != null ? srcTag('est') : '')) + '</span></div>';
     }).join('');
-    return '<div class="note">비워 두면 키·몸무게로 추정합니다. 줄자로 잰 값을 넣을수록 캐릭터 체형과 핏 판정이 정확해집니다.</div><div>' + rows + '</div>' +
+    return '<div class="note">비워 두면 키·몸무게로 자동 계산합니다(회색 숫자). 줄자로 잰 값을 넣을수록 체형과 핏 판정이 정확해집니다.</div><div>' + rows + '</div>' +
+      '<button class="btn sm" data-act="autoFill">빈 칸을 자동 계산값으로 채우기</button>' +
       '<div class="sec">선호 핏</div>' + seg('profile.pref', p.pref, PREFS);
   }
   function mediaRow(kind, label, accept, has) {
@@ -497,20 +498,85 @@
       return { kx: kx, ky: ky };
     } catch (e) { return { kx: 1, ky: 1 }; }
   }
-  function updateFig() {
-    var f = root.querySelector('.fig');
-    if (f) { var sc = bodyScale(); f.style.transform = 'scale(' + sc.kx.toFixed(3) + ',' + sc.ky.toFixed(3) + ')'; }
+  /* ---- 실측 치수로 그린 옷: 캐릭터 이미지(864x1536)의 몸 위에 SVG 로 얹는다. 1cm = 8.36px(162cm = 머리~발끝 약 1355px) ---- */
+  var GS = 8.36, GCX = 436, GH = 1536, gColors = {};
+  var PALETTE = ['#6b8cae', '#b5838d', '#8d9a6b', '#c9a86a', '#7d6b9e'];
+  var DEFAULT_COLORS = { p1: '#4f8a57', p2: '#c9ccd3', p3: '#2c3342' };
+  function garmentColor(it) {
+    if (gColors[it.id]) return gColors[it.id];
+    var def = DEFAULT_COLORS[it.id] || PALETTE[String(it.id).split('').reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % PALETTE.length];
+    if (it.photo && gColors[it.id] === undefined) {
+      gColors[it.id] = null;
+      var im = new Image();
+      im.onload = function () {
+        try {
+          var c = document.createElement('canvas'); c.width = c.height = 24;
+          var x = c.getContext('2d'); x.drawImage(im, im.width * 0.25, im.height * 0.25, im.width * 0.5, im.height * 0.5, 0, 0, 24, 24);
+          var d = x.getImageData(0, 0, 24, 24).data, r = 0, g = 0, bl = 0, n = 0;
+          for (var i = 0; i < d.length; i += 4) { if (d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235) continue; r += d[i]; g += d[i + 1]; bl += d[i + 2]; n++; }
+          if (n > 20) { gColors[it.id] = 'rgb(' + Math.round(r / n) + ',' + Math.round(g / n) + ',' + Math.round(bl / n) + ')'; updateFig(); }
+        } catch (e) { /* 색을 못 읽으면 기본 색 */ }
+      };
+      im.src = it.photo;
+    }
+    return gColors[it.id] || def;
   }
-  function figure() {
+  function circOf(it, v) { var n = E.num(v); return n ? (it.measureType === 'circ' ? n : n * 2) : 0; }
+  function topShape(it, row, Y, col) {
+    var chest = circOf(it, row.chest); if (!chest) return '';
+    var ysh = Y(345), L = E.num(row.length) || 62, sl = (E.num(row.sleeve) || 20) * GS;
+    var hs = (E.num(row.shoulder) || 38) * GS / 2, hc = Math.max(chest / Math.PI * GS / 2, hs * 0.72);
+    var hem = ysh + L * GS, ya = ysh + 100, sw = 64 + Math.max(0, (hc - 120) * 0.35);
+    function side(m) {
+      var P = [GCX + m * hs, ysh + 14], Eo = [P[0] + m * (6 + 0.035 * sl), ysh + 14 + sl], Ei = [Eo[0] - m * sw, Eo[1]], A = [GCX + m * hc, ya], Hm = [GCX + m * hc, hem];
+      return { P: P, Eo: Eo, Ei: Ei, A: A, H: Hm };
+    }
+    var l = side(-1), r = side(1);
+    function pt(a) { return a[0].toFixed(1) + ' ' + a[1].toFixed(1); }
+    var d = 'M' + pt([GCX - 46, ysh - 6]) + ' Q' + pt([GCX, ysh + 58]) + ' ' + pt([GCX + 46, ysh - 6]) +
+      ' L' + pt(r.P) + ' L' + pt(r.Eo) + ' L' + pt(r.Ei) + ' L' + pt(r.A) + ' L' + pt(r.H) + ' L' + pt(l.H) + ' L' + pt(l.A) + ' L' + pt(l.Ei) + ' L' + pt(l.Eo) + ' L' + pt(l.P) + ' Z';
+    return '<path d="' + d + '" fill="' + col + '" fill-opacity="0.94" stroke="rgba(0,0,0,.35)" stroke-width="3" stroke-linejoin="round"/>';
+  }
+  function bottomShape(it, row, Y, col) {
+    var waist = circOf(it, row.waist), hip = circOf(it, row.hip); if (!waist && !hip) return '';
+    waist = waist || hip * 0.85; hip = Math.max(hip || waist * 1.15, waist);
+    var thigh = circOf(it, row.thigh) || hip * 0.6;
+    var yw = Y(655), rise = E.num(row.rise) || 26, ycr = yw + rise * GS, yh = ycr + (E.num(row.inseam) || 72) * GS;
+    var hw = waist / Math.PI * GS / 2, hh = hip / Math.PI * GS / 2, oc = Math.max(hh, thigh / Math.PI * GS), ho = oc * 0.8;
+    function pt(x, y) { return x.toFixed(1) + ' ' + y.toFixed(1); }
+    var d = 'M' + pt(GCX - hw, yw) + ' L' + pt(GCX - hh, yw + 110) + ' L' + pt(GCX - oc, ycr) + ' L' + pt(GCX - ho, yh) + ' L' + pt(GCX - 14, yh) + ' L' + pt(GCX, ycr - 10) +
+      ' L' + pt(GCX + 14, yh) + ' L' + pt(GCX + ho, yh) + ' L' + pt(GCX + oc, ycr) + ' L' + pt(GCX + hh, yw + 110) + ' L' + pt(GCX + hw, yw) + ' Z';
+    return '<path d="' + d + '" fill="' + col + '" fill-opacity="0.94" stroke="rgba(0,0,0,.35)" stroke-width="3" stroke-linejoin="round"/>';
+  }
+  function garmentLayer(ev) {
+    var ky = bodyScale().ky, out = '';
+    function Y(y) { return GH - (GH - y) * ky; }
+    ['bottom', 'top'].forEach(function (cat) {
+      var r = ev && ev.results ? ev.results.filter(function (x) { return x.cat === cat; })[0] : null;
+      if (!r || !r.garment) return;
+      var row = r.garment.sizes.filter(function (z) { return z.label === r.chosen; })[0];
+      if (!row) return;
+      out += cat === 'top' ? topShape(r.garment, row, Y, garmentColor(r.garment)) : bottomShape(r.garment, row, Y, garmentColor(r.garment));
+    });
+    return out;
+  }
+  function updateFig() {
+    var f = root.querySelector('.fbody');
+    if (!f) return;
+    var sc = bodyScale(); f.style.transform = 'scale(' + sc.kx.toFixed(3) + ',' + sc.ky.toFixed(3) + ')';
+    var g = root.querySelector('.gsvg'); if (g) g.innerHTML = garmentLayer(safeEval());
+  }
+  function figure(ev) {
     var sc = bodyScale(), custom = !!urls.avatar, src = custom ? urls.avatar : DEFAULT_AVATAR;
     var face = (!custom && urls.face) ? '<span class="face"><img alt="" src="' + urls.face + '"></span>' : '';
-    return '<div class="fig" style="transform:scale(' + sc.kx.toFixed(3) + ',' + sc.ky.toFixed(3) + ')"><img alt="내 캐릭터" src="' + src + '">' + face + '</div>';
+    return '<div class="fig"><div class="fbody" style="transform:scale(' + sc.kx.toFixed(3) + ',' + sc.ky.toFixed(3) + ')"><img alt="내 캐릭터" src="' + src + '">' + face + '</div>' +
+      (custom ? '' : '<svg class="gsvg" viewBox="0 0 864 1536" preserveAspectRatio="none" aria-hidden="true">' + garmentLayer(ev) + '</svg>') + '</div>';
   }
-  function reelMedia() {
+  function reelMedia(ev) {
     var m = state.motion, inner, badge = '', worn = wornImage();
     if (worn) { inner = '<img class="worn" alt="' + h(worn.name) + ' 입은 모습" src="' + worn.url + '">'; badge = CATS[worn.cat] + ' · ' + worn.name + ' 입은 모습'; }
     else if (urls.videos[m]) inner = '<video src="' + urls.videos[m] + '" loop playsinline autoplay muted></video>';
-    else inner = figure();
+    else inner = figure(ev);
     return '<div class="rmedia' + (inner.indexOf('class="fig"') === 0 ? ' figbg' : '') + '" id="rmedia">' + inner + (badge ? '<span class="rbadge">' + h(badge) + '</span>' : '') + '</div>';
   }
   var IC = {
@@ -518,6 +584,8 @@
     swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>',
     tune: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
+    cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    hanger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7a2 2 0 1 0-2-2M12 7v2l9 6a1.5 1.5 0 0 1-.8 2.7H3.8A1.5 1.5 0 0 1 3 15l9-6"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>'
   };
 
@@ -764,6 +832,22 @@
       if (!item(tid)) return;
       shrink(file, 1400, 0.9).then(function (b) { return blobPut(kind, b).then(function () { if (urls.tryon[tid]) URL.revokeObjectURL(urls.tryon[tid]); urls.tryon[tid] = URL.createObjectURL(b); render(); }); })
         .catch(function () { alert('입은 모습 이미지를 저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.'); });
+    } else if (kind === 'addCap') {
+      if (!window.SizeOcr) return;
+      ocr = { busy: true, msg: '글자를 읽는 중입니다. 처음에는 인식 데이터를 내려받느라 1분 가까이 걸릴 수 있어요.', ok: false }; render();
+      SizeOcr.recognize(file, function (stt, pr) {
+        if (pr != null && ocr.busy) { ocr.msg = '글자를 읽는 중… ' + Math.round(pr * 100) + '%'; var el = root.querySelector('[data-ocrmsg]'); if (el) el.textContent = ocr.msg; }
+      }).then(function (text) {
+        var cat = SizeOcr.detectCat(text), r = SizeOcr.parse(text, cat);
+        if (!r.sizes.length) { ocr = { busy: false, msg: '사이즈표를 읽지 못했습니다. 표 부분만 크게, 또렷하게 다시 캡처하거나 아래에서 직접 입력해 주세요.', ok: false }; render(); return; }
+        var d = blankDraft(cat); d.sizes = r.sizes; if (r.circ) d.measureType = 'circ';
+        var bad = r.bad || [];
+        ocr = { busy: false, msg: CATS[cat] + ' 사이즈표로 읽었습니다. 사이즈 ' + r.sizes.length + '개' + (cat === 'shoe' ? '' : ', 항목 ' + r.found + '개') + '. 아래 표가 캡처와 같은지 확인해 주세요.' +
+          (r.fixed && r.fixed.length ? ' 앞뒤 값의 흐름에 맞춰 자동으로 고친 칸: ' + r.fixed.join(', ') + '.' : '') +
+          (bad.length ? ' 특히 의심되는 칸: ' + bad.join(', ') + '.' : ''), ok: !bad.length && !(r.fixed && r.fixed.length) };
+        state.draft = d; editCat = cat;
+        if (sheet === 'add') swapSheet('edit'); else { ocr = { busy: false, msg: '', ok: false }; state.draft = null; render(); }
+      }).catch(function (err) { ocr = { busy: false, msg: (err && err.message) || '글자를 읽지 못했습니다.', ok: false }; render(); });
     } else if (kind === 'sizeCap') {
       var d0 = state.draft;
       if (!d0 || !window.SizeOcr) return;
@@ -800,6 +884,10 @@
   }
 
   var tx = null;
+  function swapSheet(name) {
+    try { history.replaceState({ sh: name }, ''); } catch (e) {}
+    sheet = name; render();
+  }
   root.addEventListener('touchstart', function (e) { tx = e.target.closest('#rmedia') ? e.touches[0].clientX : null; }, { passive: true });
   root.addEventListener('touchend', function (e) {
     if (tx === null) return;
@@ -902,8 +990,25 @@
         '<div class="note">추정 결과이며 실제 착용감을 보장하지 않습니다.</div><button class="btn" data-act="closeSheet">닫기</button>';
     }
     if (sheet === 'cfg') { openCfg = true; return '<h3>등급 기준 보정</h3>' + cfgPanel() + '<button class="btn" data-act="closeSheet">닫기</button>'; }
+    if (sheet === 'add') {
+      var busyMsg = ocr.msg ? '<div data-ocrmsg class="' + (ocr.ok ? 'note' : 'warn') + '">' + h(ocr.msg) + '</div>' : '';
+      return '<h3>옷 추가</h3><div class="note">쇼핑몰에서 <b>사이즈표를 캡처</b>해서 올리면 치수를 자동으로 읽고, 상의·하의·신발도 알아서 구분합니다.</div>' +
+        '<label class="bigbtn">' + IC.cam + (ocr.busy ? '읽는 중입니다…' : '사이즈표 캡처 올리기') + '<input type="file" accept="image/*" data-file="addCap" hidden' + (ocr.busy ? ' disabled' : '') + '></label>' + busyMsg +
+        '<div class="sec">사이즈표가 없거나 읽지 못했나요?</div><div class="acts"><button class="btn sm" data-act="new" data-cat="top">상의 직접 입력</button><button class="btn sm" data-act="new" data-cat="bottom">하의 직접 입력</button><button class="btn sm" data-act="new" data-cat="shoe">신발 직접 입력</button></div>' +
+        '<button class="btn" data-act="closeSheet">닫기</button>';
+    }
+    if (sheet === 'closet') {
+      var total = state.closet.length;
+      return '<h3>내 옷장</h3>' + (total ? ['top', 'bottom', 'shoe'].map(function (c) {
+        var list = state.closet.filter(function (x) { return x.cat === c; });
+        return list.length ? '<div class="sec">' + CATS[c] + '</div><div class="hs">' + list.map(function (x) { return closetTile(x, c); }).join('') + '</div>' : '';
+      }).join('') : '<div class="empty">아직 옷이 없어요. 📷 옷 추가로 첫 옷을 올려 보세요.</div>') +
+        '<div class="note">옷을 누르면 캐릭터가 그 옷을 입고, 사이즈 버튼으로 크기를 바꿔 볼 수 있어요.</div>' +
+        '<div class="acts"><button class="btn" data-act="open" data-name="add">＋ 옷 추가</button><button class="btn p" data-act="closeSheet">완료</button></div>';
+    }
     if (sheet === 'start') {
-      return '<h3>내 몸 정보</h3><div class="note">키와 몸무게만 넣으면 캐릭터가 내 체형으로 바뀌고, 예시 옷의 핏이 바로 나옵니다.</div>' + basicForm() + faceRow() +
+      return '<h3>내 몸 정보</h3><div class="note">키와 몸무게를 넣으면 캐릭터가 내 체형으로 바뀝니다. 아래 치수는 <b>모르면 비워 두세요.</b> 키·몸무게로 자동 계산한 값을 대신 씁니다.</div>' + basicForm() + faceRow() +
+        '<div class="sec">내 치수 (모르면 비워 두기)</div>' + advForm(true) +
         (!E.num(state.profile.height) ? '<div class="note" data-startwarn>키를 입력하면 시작할 수 있어요.</div>' : '') +
         '<button class="btn p" data-act="startDone">시작하기</button>';
     }
@@ -923,26 +1028,30 @@
   function viewMain() {
     var ev = safeEval();
     var segs = MOTIONS.map(function (x, i) { return '<button data-act="motion" data-i="' + i + '" class="' + (state.motion === i ? 'on' : '') + '" aria-label="' + x + '"><i></i><span>' + x + '</span></button>'; }).join('');
+    var concl = '';
+    if (ev.results.length) {
+      var r0 = ev.results[0], p0 = r0.current && r0.current.primary;
+      concl = '<button class="rconc" data-act="open" data-name="detail">' + (r0.cat === 'shoe' ? h(r0.chosen) + ' 사이즈' : h(r0.chosen) + ' 사이즈') + (p0 ? ' · ' + p0.grade : '') +
+        '<small>' + CATS[r0.cat] + ' · ' + h(r0.garment.name) + (r0.recommended && r0.recommended !== r0.chosen ? ' · 추천은 ' + h(r0.recommended) : '') + ' · 눌러서 자세히</small></button>';
+    }
     var chips = ev.results.map(function (r) {
       var p = r.current && r.current.primary;
       return '<button class="fchip" data-act="open" data-name="detail"><span class="k">' + CATS[r.cat] + ' · ' + h(r.chosen) + '</span>' +
         (p ? '<span class="grade gk-' + p.gradeKey + '">' + p.grade + ' ' + sgn(p.ease) + p.unit + '</span>' : '') + '</button>';
     }).join('');
-    var rail = ['top', 'bottom', 'shoe'].map(function (c) {
-      var has = state.sel[c] && item(state.sel[c].id);
-      return '<button data-act="open" data-name="' + c + '" class="' + (sheet === c ? 'on' : '') + (has ? ' has' : '') + '" aria-label="' + CATS[c] + '"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">' + GLYPH[c] + '</svg><span>' + CATS[c] + '</span></button>';
-    }).join('') +
-      '<button data-act="open" data-name="detail" class="' + (sheet === 'detail' ? 'on' : '') + '" aria-label="핏 상세">' + IC.list + '<span>상세</span></button>' +
+    var hasSel = Object.keys(state.sel).some(function (c) { return state.sel[c] && item(state.sel[c].id); });
+    var rail = '<button data-act="open" data-name="add" class="' + (sheet === 'add' ? 'on' : '') + '" aria-label="옷 추가">' + IC.cam + '<span>옷 추가</span></button>' +
+      '<button data-act="open" data-name="closet" class="' + (sheet === 'closet' ? 'on' : '') + (hasSel ? ' has' : '') + '" aria-label="내 옷장">' + IC.hanger + '<span>내 옷장</span></button>' +
       '<button data-act="open" data-name="settings" class="' + (sheet === 'settings' ? 'on' : '') + '" aria-label="설정">' + IC.gear + '<span>설정</span></button>';
     var sh = '';
     if (sheet) {
-      var half = SHEET_HALF[sheet] || sheet === 'start';
+      var half = SHEET_HALF[sheet] || sheet === 'add';
       sh = '<div class="sheetbg' + (half ? ' lite' : '') + '" data-act="closeSheet"></div><div class="sheet' + (half ? ' half' : '') + '" role="dialog" aria-modal="true"><div class="grab"></div>' + sheetInner(ev) + '</div>';
     }
-    return '<div class="reel">' + reelMedia() +
+    return '<div class="reel">' + reelMedia(ev) +
       '<div class="rtop"><div class="rsegs">' + segs + '</div><div class="rbar"><div class="wm">AI FIT</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
       '<div class="rrail">' + rail + '</div>' +
-      '<div class="rcap"><div class="rwho">@' + h(user.nick) + ' · 오늘의 코디</div><div class="fchips">' + (chips || (E.num(state.profile.height) ? '<span class="fchip">오른쪽 버튼에서 옷을 골라 보세요</span>' : '<button class="fchip" data-act="open" data-name="start">내 키·몸무게 입력하기</button>')) + '</div>' +
+      '<div class="rcap"><div class="rwho">@' + h(user.nick) + ' · 오늘의 코디</div>' + concl + '<div class="fchips">' + (chips || (E.num(state.profile.height) ? '<span class="fchip">오른쪽 📷 버튼으로 옷을 추가해 보세요</span>' : '<button class="fchip" data-act="open" data-name="start">내 키·몸무게 입력하기</button>')) + '</div>' +
       (ev.note ? '<div class="rnote">' + h(ev.note) + '</div>' : '') +
       '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다 · 좌우로 넘겨 동작 바꾸기</div></div>' + sh + '</div>';
   }
@@ -998,15 +1107,31 @@
     state.closet = sampleCloset(); state.sel = defaultSel(); state.seq = 10; state.feel = {}; state.draft = null;
     save(); render();
   };
+  ACT.autoFill = function () {
+    if (!E.num(state.profile.height)) { alert('먼저 키를 입력해 주세요.'); return; }
+    var est = E.bodyOf(state.profile, cfgNow()).vals;
+    MFIELDS.forEach(function (f) {
+      var cur = state.profile.m[f[0]];
+      if ((cur == null || cur === '') && est[f[0]] != null) state.profile.m[f[0]] = String(Math.round(est[f[0]] * 10) / 10);
+    });
+    save(); render(); updateFig();
+  };
   ACT.startDone = function () {
     if (!E.num(state.profile.height)) { var w = root.querySelector('[data-startwarn]'); if (w) w.classList.add('warn'); return; }
     ACT.closeSheet();
   };
   ACT.clearSel = function (el) { delete state.sel[el.dataset.cat]; save(); render(); };
   var _new = ACT.new, _edit = ACT.edit, _save = ACT.saveDraft, _logout = ACT.logout;
-  ACT.new = function (el) { editCat = el.dataset.cat; ocr = { busy: false, msg: '', ok: false }; _new(el); openSheet('edit'); };
+  ACT.new = function (el) { editCat = el.dataset.cat; ocr = { busy: false, msg: '', ok: false }; _new(el); if (sheet === 'add') swapSheet('edit'); else openSheet('edit'); };
   ACT.edit = function (el) { var it = item(el.dataset.id); if (!it) return; editCat = it.cat; ocr = { busy: false, msg: '', ok: false }; _edit(el); openSheet('edit'); };
-  ACT.saveDraft = function () { _save(); if (!state.draft) ACT.closeSheet(); };
+  ACT.saveDraft = function () {
+    var wasNew = !!(state.draft && !state.draft.id), cat = state.draft && state.draft.cat;
+    _save();
+    if (!state.draft) {
+      if (wasNew) { var it = state.closet[state.closet.length - 1]; if (it && it.cat === cat) { state.sel[cat] = { id: it.id, size: null }; save(); } }
+      ACT.closeSheet();
+    }
+  };
   ACT.cancelEdit = function () { state.draft = null; ACT.closeSheet(); };
   ACT.logout = function () { onbShown = false; sheet = null; try { history.replaceState({}, ''); } catch (e) {} _logout(); };
 
