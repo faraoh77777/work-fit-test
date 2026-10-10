@@ -785,7 +785,7 @@
         render();
       }).catch(function (err) { ocr = { busy: false, msg: err.message || '글자를 읽지 못했습니다.', ok: false }; render(); });
     } else if (kind === 'draftPhoto') {
-      shrink(file, 240, 0.8).then(blobToDataUrl).then(function (u) { state.draft.photo = u; save(); render(); }).catch(function (err) { alert(err.message); });
+      shrink(file, 640, 0.85).then(blobToDataUrl).then(function (u) { state.draft.photo = u; save(); render(); }).catch(function (err) { alert(err.message); });
     } else if (kind === 'face') {
       faceCrop(file, 400).then(function (b) { return blobPut('face', b).then(function () { if (urls.face) URL.revokeObjectURL(urls.face); urls.face = URL.createObjectURL(b); render(); }); })
         .catch(function (err) { alert(err.message || '얼굴 사진을 저장하지 못했습니다.'); });
@@ -832,9 +832,53 @@
       '<div class="tname">' + h(it.name) + '</div>' + (priceText(it.price) ? '<div class="price">' + priceText(it.price) + '</div>' : '') + '<div class="sub">' + meta + '</div><div class="chips">' + chips + '</div>' + tryonRow(it) + buyLink(it, 'buy') + '</div>';
   }
 
+  /* ---- 입혀 보기(AI): Supabase Edge Function 이 기본 캐릭터 + 상품 사진으로 입은 모습을 만든다 ---- */
+  var genBusy = null;
+  function deviceId() {
+    try {
+      var d = localStorage.getItem('fit-device');
+      if (!d) { d = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); localStorage.setItem('fit-device', d); }
+      return d;
+    } catch (e) { return 'tmp' + Math.random().toString(16).slice(2) + Date.now().toString(16); }
+  }
+  function genEnabled() { var c = window.TRYON_CFG; return !!(c && c.url && c.anon); }
+  function genButton(it) {
+    if (!genEnabled() || !it.photo) return '';
+    if (genBusy === it.id) return '<button class="btn sm" disabled>만드는 중… (최대 1분)</button>';
+    return '<button class="btn sm p" data-act="genTryon" data-id="' + it.id + '"' + (genBusy ? ' disabled' : '') + '>' + (urls.tryon[it.id] ? 'AI로 다시 입히기' : 'AI로 입혀 보기') + '</button>';
+  }
+  ACT.genTryon = function (el) {
+    var it = item(el.dataset.id);
+    if (!it || genBusy || !genEnabled()) return;
+    if (!it.photo) { alert('먼저 이 옷의 상품 사진을 올려 주세요. (수정 → 상품 사진)'); return; }
+    var first = false;
+    try { first = !localStorage.getItem('fit-gen-ok'); } catch (e) { first = true; }
+    if (first && !confirm('상품 사진이 AI 이미지 생성 서버로 전송됩니다. 하루 이용 횟수가 정해져 있어요. 계속할까요?')) return;
+    if (urls.tryon[it.id] && !confirm('이미 만든 입은 모습이 있습니다. 다시 만들면 하루 이용 횟수가 한 번 더 쓰입니다. 계속할까요?')) return;
+    try { localStorage.setItem('fit-gen-ok', '1'); } catch (e) {}
+    var c = window.TRYON_CFG, id = it.id, ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, 170000);
+    genBusy = id; render();
+    fetch(c.url.replace(/\/$/, '') + '/functions/v1/tryon', {
+      method: 'POST', signal: ctl.signal,
+      headers: { 'Content-Type': 'application/json', apikey: c.anon, Authorization: 'Bearer ' + c.anon },
+      body: JSON.stringify({ device: deviceId(), cat: it.cat, garment: it.photo })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
+      if (!res.ok || !res.j.image) throw new Error((res.j && res.j.error) || '이미지를 만들지 못했습니다.');
+      var bin = atob(res.j.image), u = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      var blob = new Blob([u], { type: res.j.mime || 'image/png' });
+      return blobPut('tryon:' + id, blob).then(function () {
+        if (urls.tryon[id]) URL.revokeObjectURL(urls.tryon[id]);
+        urls.tryon[id] = URL.createObjectURL(blob);
+      });
+    }).catch(function (err) {
+      alert(err && err.name === 'AbortError' ? '시간이 너무 오래 걸려 중단했습니다. 잠시 뒤 다시 시도해 주세요.' : ((err && err.message) || '이미지를 만들지 못했습니다.'));
+    }).then(function () { clearTimeout(timer); genBusy = null; render(); });
+  };
+
   function tryonRow(it) {
     var has = !!urls.tryon[it.id];
-    return '<div class="tryon"><label class="btn sm" style="cursor:pointer">' + (has ? '입은 모습 바꾸기' : '입은 모습 올리기') + '<input type="file" accept="image/*" data-file="tryon:' + it.id + '" hidden></label>' +
+    return '<div class="tryon">' + genButton(it) + '<label class="btn sm" style="cursor:pointer">' + (has ? '입은 모습 바꾸기' : '입은 모습 올리기') + '<input type="file" accept="image/*" data-file="tryon:' + it.id + '" hidden></label>' +
       (has ? '<button class="btn sm danger" data-act="clearTryon" data-id="' + it.id + '">삭제</button>' : '') + '</div>';
   }
 
