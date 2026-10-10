@@ -50,6 +50,7 @@
     '<div class="hv-cap">FIT 하면 이렇게 보여요</div><div class="hv-ai">AI 생성 이미지</div>' + HERO_BANNER + '</div>';
 
   /* ---------- 상태 ---------- */
+  function defaultSel() { return { top: { id: 'p1', size: null }, bottom: { id: 'p3', size: null }, shoe: { id: 'p4', size: null } }; }
   function blankState() {
     return { step: 'profile', profile: { gender: 'male', height: '', weight: '', pref: 'fit', m: {} },
       closet: [], sel: {}, draft: null, motion: 0, cfg: null, feel: {}, seq: 1 };
@@ -68,9 +69,20 @@
     return s;
   }
   var user = (function () { try { return userById(localStorage.getItem(CUR_KEY)); } catch (e) { return null; } })();
+  /* 처음 여는 사람은 닉네임·PIN 없이 바로 시작한다. 예전 단일 사용자 데이터가 있으면 그대로 이어받는다 */
+  if (!user && !readUsers().length) {
+    var gu = { id: 'u' + Date.now().toString(36), nick: '나', salt: '', pin: '', created: Date.now() };
+    writeUsers([gu]); user = gu;
+    try { localStorage.setItem(CUR_KEY, gu.id); } catch (e) {}
+    var guOld = null;
+    try { var guRaw = localStorage.getItem(KEY); if (guRaw) guOld = Object.assign(blankState(), JSON.parse(guRaw)); } catch (e) { guOld = null; }
+    var guState = guOld || blankState();
+    if (!guOld) { guState.profile.gender = MODEL.gender; guState.closet = sampleCloset(); guState.seq = 10; guState.sel = defaultSel(); }
+    try { localStorage.setItem(KEY + ':' + gu.id, JSON.stringify(guState)); } catch (e) {}
+  }
 
   var state = user ? load() : blankState();
-  var urls = { avatar: null, videos: [null, null, null], tryon: {} };
+  var urls = { avatar: null, face: null, videos: [null, null, null], tryon: {} };
   var openCfg = false;
   var root = document.getElementById('app');
 
@@ -114,13 +126,15 @@
   function blobGet(k) { return rawGet(bk(k)); }
   function blobPut(k, v) { return rawPut(bk(k), v); }
   function blobDel(k) { return rawDel(bk(k)); }
-  var MEDIA_KEYS = ['avatar', 'video0', 'video1', 'video2'];
+  var MEDIA_KEYS = ['avatar', 'video0', 'video1', 'video2', 'face'];
+  var DEFAULT_AVATAR = 'assets/avatar_default.jpg';
 
   function clearUrls() {
     if (urls.avatar) URL.revokeObjectURL(urls.avatar);
     urls.videos.forEach(function (u) { if (u) URL.revokeObjectURL(u); });
     Object.keys(urls.tryon).forEach(function (k) { if (urls.tryon[k]) URL.revokeObjectURL(urls.tryon[k]); });
-    urls = { avatar: null, videos: [null, null, null], tryon: {} };
+    if (urls.face) URL.revokeObjectURL(urls.face);
+    urls = { avatar: null, face: null, videos: [null, null, null], tryon: {} };
   }
   function loadMedia() {
     if (!user) return Promise.resolve();
@@ -130,8 +144,9 @@
       if (!user || user.id !== uid) return;
       clearUrls();
       if (r[0]) urls.avatar = URL.createObjectURL(r[0]);
+      if (r[4]) urls.face = URL.createObjectURL(r[4]);
       for (var i = 0; i < 3; i++) if (r[i + 1]) urls.videos[i] = URL.createObjectURL(r[i + 1]);
-      ids.forEach(function (id, j) { var b = r[4 + j]; if (b) urls.tryon[id] = URL.createObjectURL(b); });
+      ids.forEach(function (id, j) { var b = r[5 + j]; if (b) urls.tryon[id] = URL.createObjectURL(b); });
     });
   }
 
@@ -145,6 +160,21 @@
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
         URL.revokeObjectURL(u);
         c.toBlob(function (b) { b ? res(b) : rej(new Error('변환 실패')); }, 'image/jpeg', quality);
+      };
+      img.onerror = function () { URL.revokeObjectURL(u); rej(new Error('이미지를 읽을 수 없습니다')); };
+      img.src = u;
+    });
+  }
+  /* 얼굴 사진: 가운데 정사각형으로 잘라 작게 줄인다(셀카는 얼굴이 위쪽에 있어 세로로 살짝 위를 기준으로 자름) */
+  function faceCrop(file, size) {
+    return new Promise(function (res, rej) {
+      var u = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(u);
+        var m = Math.min(img.width, img.height), c = document.createElement('canvas');
+        c.width = c.height = size;
+        c.getContext('2d').drawImage(img, (img.width - m) / 2, (img.height - m) * 0.3, m, m, 0, 0, size, size);
+        c.toBlob(function (b) { b ? res(b) : rej(new Error('변환 실패')); }, 'image/jpeg', 0.9);
       };
       img.onerror = function () { URL.revokeObjectURL(u); rej(new Error('이미지를 읽을 수 없습니다')); };
       img.src = u;
@@ -339,10 +369,34 @@
       '<div class="sec">선호 핏</div>' + seg('profile.pref', p.pref, PREFS);
   }
   function mediaCard() {
-    return '<div class="card"><div class="h"><span>내 아바타</span></div>' +
-      '<div class="note">이미 만든 아바타 이미지와 동작 영상을 연결합니다. 이 기기 안에만 저장됩니다.</div>' +
+    return '<div class="card"><div class="h"><span>다른 캐릭터 연결</span></div>' +
+      '<div class="note">기본 캐릭터 대신 쓸 이미지·동작 영상을 연결합니다. 직접 연결하면 얼굴 바꾸기는 적용되지 않습니다. 이 기기 안에만 저장됩니다.</div>' +
       mediaRow('avatar', '아바타 이미지', 'image/*', !!urls.avatar) +
       MOTIONS.map(function (m, i) { return mediaRow('video' + i, '영상 · ' + m, 'video/*', !!urls.videos[i]); }).join('') + '</div>';
+  }
+  function basicForm() {
+    var p = state.profile;
+    return seg('profile.gender', p.gender, [['male', '남성'], ['female', '여성']]) +
+      '<div class="row2"><label class="f">키<div class="inwrap"><input type="number" inputmode="decimal" id="in-height" data-path="profile.height" value="' + h(p.height) + '"><small>cm</small></div></label>' +
+      '<label class="f">몸무게<div class="inwrap"><input type="number" inputmode="decimal" id="in-weight" data-path="profile.weight" value="' + h(p.weight) + '"><small>kg</small></div></label></div>';
+  }
+  function faceRow() {
+    var has = !!urls.face;
+    return '<div class="line" style="align-items:center"><span>내 얼굴 사진 ' + (has ? '<span class="tag real">적용됨</span>' : '<span class="tag">기본 얼굴</span>') + '</span>' +
+      '<span class="acts"><label class="btn sm" style="cursor:pointer">' + (has ? '바꾸기' : '사진 선택') + '<input type="file" accept="image/*" data-file="face" hidden></label>' +
+      (has ? '<button class="btn sm danger" data-act="clearFile" data-kind="face">되돌리기</button>' : '') + '</span></div>' +
+      '<div class="note">얼굴이 크게 나온 정면 사진이 잘 맞습니다. 사진은 이 기기 안에만 저장되고 밖으로 나가지 않습니다.</div>';
+  }
+  function advForm() {
+    var p = state.profile, body = E.bodyOf(p, cfgNow());
+    var rows = MFIELDS.map(function (f) {
+      var v = p.m[f[0]] == null ? '' : p.m[f[0]], est = body.vals[f[0]];
+      return '<div class="mrow"><span>' + f[1] + '</span>' +
+        '<div class="inwrap"><input type="number" inputmode="decimal" step="0.1" id="m-' + f[0] + '" data-path="profile.m.' + f[0] + '" data-hint="' + f[0] + '" value="' + h(v) + '" placeholder="' + (est != null ? est : '') + '" aria-label="' + f[1] + '"><small>' + f[2] + '</small></div>' +
+        '<span id="tag-' + f[0] + '">' + (v !== '' ? srcTag('real') : (est != null ? srcTag('est') : '')) + '</span></div>';
+    }).join('');
+    return '<div class="note">비워 두면 키·몸무게로 추정합니다. 줄자로 잰 값을 넣을수록 캐릭터 체형과 핏 판정이 정확해집니다.</div><div>' + rows + '</div>' +
+      '<div class="sec">선호 핏</div>' + seg('profile.pref', p.pref, PREFS);
   }
   function mediaRow(kind, label, accept, has) {
     return '<div class="line" style="align-items:center"><span>' + label + ' ' + (has ? '<span class="tag real">연결됨</span>' : '<span class="tag">없음</span>') + '</span>' +
@@ -426,18 +480,38 @@
     }
     return null;
   }
+  /* 기본 모델(여성 162cm/50kg)과 비교한 체형 비율. 실측 치수가 있으면 그것을 쓰고 없으면 키·몸무게 추정치를 쓴다 */
+  function bodyScale() {
+    try {
+      var p = state.profile, hh = E.num(p.height);
+      if (!hh) return { kx: 1, ky: 1 };
+      var base = E.bodyOf({ gender: MODEL.gender, height: MODEL.height, weight: MODEL.weight, pref: 'fit', m: {} }, cfgNow()).vals;
+      var cur = E.bodyOf(p, cfgNow()).vals, sum = 0, n = 0;
+      ['chest', 'waist', 'hip'].forEach(function (k) {
+        var a = E.num(cur[k]), b = E.num(base[k]);
+        if (a && b) { sum += a / b; n++; }
+      });
+      var ratio = n ? sum / n : 1;
+      var kx = Math.max(0.84, Math.min(1.3, 1 + (ratio - 1) * 0.9));
+      var ky = Math.max(0.93, Math.min(1.07, hh / Number(MODEL.height)));
+      return { kx: kx, ky: ky };
+    } catch (e) { return { kx: 1, ky: 1 }; }
+  }
+  function updateFig() {
+    var f = root.querySelector('.fig');
+    if (f) { var sc = bodyScale(); f.style.transform = 'scale(' + sc.kx.toFixed(3) + ',' + sc.ky.toFixed(3) + ')'; }
+  }
+  function figure() {
+    var sc = bodyScale(), custom = !!urls.avatar, src = custom ? urls.avatar : DEFAULT_AVATAR;
+    var face = (!custom && urls.face) ? '<span class="face"><img alt="" src="' + urls.face + '"></span>' : '';
+    return '<div class="fig" style="transform:scale(' + sc.kx.toFixed(3) + ',' + sc.ky.toFixed(3) + ')"><img alt="내 캐릭터" src="' + src + '">' + face + '</div>';
+  }
   function reelMedia() {
     var m = state.motion, inner, badge = '', worn = wornImage();
     if (worn) { inner = '<img class="worn" alt="' + h(worn.name) + ' 입은 모습" src="' + worn.url + '">'; badge = CATS[worn.cat] + ' · ' + worn.name + ' 입은 모습'; }
     else if (urls.videos[m]) inner = '<video src="' + urls.videos[m] + '" loop playsinline autoplay muted></video>';
-    else if (urls.avatar) { inner = '<img alt="내 아바타" src="' + urls.avatar + '">'; badge = '이 동작의 영상이 없어 이미지를 표시합니다'; }
-    else {
-      inner = '<svg viewBox="0 0 120 260" role="img" aria-label="아바타 자리 표시"><circle cx="60" cy="26" r="17" fill="var(--skin)"/><rect x="54" y="40" width="12" height="10" fill="var(--skin)"/>' +
-        '<path d="M30 56 Q60 46 90 56 L96 120 L82 124 L80 100 L80 150 L40 150 L40 100 L38 124 L24 120 Z" fill="rgba(20,20,20,.08)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>' +
-        '<path d="M41 150 L79 150 L82 226 L66 226 L60 170 L54 226 L38 226 Z" fill="rgba(20,20,20,.14)" stroke="var(--ink)" stroke-width="1.4" stroke-linejoin="round"/></svg>';
-      badge = '설정에서 아바타를 연결하면 여기에 표시됩니다';
-    }
-    return '<div class="rmedia" id="rmedia">' + inner + (badge ? '<span class="rbadge">' + h(badge) + '</span>' : '') + '</div>';
+    else inner = figure();
+    return '<div class="rmedia' + (inner.indexOf('class="fig"') === 0 ? ' figbg' : '') + '" id="rmedia">' + inner + (badge ? '<span class="rbadge">' + h(badge) + '</span>' : '') + '</div>';
   }
   var IC = {
     list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
@@ -558,7 +632,11 @@
 
   var ACT = {
     lgNew: function () { resetLogin('new'); render(); },
-    lgPick: function (el) { resetLogin('pin', el.dataset.id); render(); },
+    lgPick: function (el) {
+      var pu = userById(el.dataset.id);
+      if (pu && !pu.pin) { user = pu; state = load(); enterApp(); return; }
+      resetLogin('pin', el.dataset.id); render();
+    },
     lgDel: function (el) { resetLogin('del', el.dataset.id); render(); },
     lgBack: function () { resetLogin(); render(); },
     lgSet: function (el) { lg[el.dataset.k] = el.dataset.v; render(); },
@@ -596,6 +674,7 @@
       var k = el.dataset.kind;
       blobDel(k).then(function () {
         if (k === 'avatar') { if (urls.avatar) URL.revokeObjectURL(urls.avatar); urls.avatar = null; }
+        else if (k === 'face') { if (urls.face) URL.revokeObjectURL(urls.face); urls.face = null; }
         else { var i = Number(k.slice(5)); if (urls.videos[i]) URL.revokeObjectURL(urls.videos[i]); urls.videos[i] = null; }
         render();
       });
@@ -637,6 +716,7 @@
     }
     if (t.dataset.path && t.type !== 'checkbox' && t.tagName !== 'SELECT') {
       setPath(state, t.dataset.path, t.value); save();
+      if (t.dataset.path.indexOf('profile.') === 0) updateFig();
       if (t.dataset.hint) refreshHints();
     }
   });
@@ -706,6 +786,9 @@
       }).catch(function (err) { ocr = { busy: false, msg: err.message || '글자를 읽지 못했습니다.', ok: false }; render(); });
     } else if (kind === 'draftPhoto') {
       shrink(file, 240, 0.8).then(blobToDataUrl).then(function (u) { state.draft.photo = u; save(); render(); }).catch(function (err) { alert(err.message); });
+    } else if (kind === 'face') {
+      faceCrop(file, 400).then(function (b) { return blobPut('face', b).then(function () { if (urls.face) URL.revokeObjectURL(urls.face); urls.face = URL.createObjectURL(b); render(); }); })
+        .catch(function (err) { alert(err.message || '얼굴 사진을 저장하지 못했습니다.'); });
     } else if (kind === 'avatar') {
       shrink(file, 1000, 0.92).then(function (b) { return blobPut('avatar', b).then(function () { if (urls.avatar) URL.revokeObjectURL(urls.avatar); urls.avatar = URL.createObjectURL(b); render(); }); })
         .catch(function (err) { alert(err.message); });
@@ -775,16 +858,21 @@
         '<div class="note">추정 결과이며 실제 착용감을 보장하지 않습니다.</div><button class="btn" data-act="closeSheet">닫기</button>';
     }
     if (sheet === 'cfg') { openCfg = true; return '<h3>등급 기준 보정</h3>' + cfgPanel() + '<button class="btn" data-act="closeSheet">닫기</button>'; }
+    if (sheet === 'start') {
+      return '<h3>내 몸 정보</h3><div class="note">키와 몸무게만 넣으면 캐릭터가 내 체형으로 바뀌고, 예시 옷의 핏이 바로 나옵니다.</div>' + basicForm() + faceRow() +
+        (!E.num(state.profile.height) ? '<div class="note" data-startwarn>키를 입력하면 시작할 수 있어요.</div>' : '') +
+        '<button class="btn p" data-act="startDone">시작하기</button>';
+    }
     /* settings */
     var av = urls.avatar ? '<img class="uav big" alt="" src="' + urls.avatar + '">' : '<span class="uav big">' + h(String(user.nick).charAt(0)) + '</span>';
-    return '<h3>설정</h3>' +
-      (!E.num(state.profile.height) ? '<div class="rec">먼저 성별·키·몸무게를 입력해 주세요. 치수는 나중에 여기서 언제든 바꿀 수 있어요.</div>' : '') +
-      '<div class="card"><div class="ucard">' + av + '<div><b>' + h(user.nick) + ' 님</b><div class="note">이 기기 안에 저장된 프로필</div></div></div>' +
-      '<div class="acts"><button class="btn sm" data-act="logout">프로필 바꾸기</button><button class="btn sm danger" data-act="logout">로그아웃</button></div></div>' +
-      '<div class="sec">내 정보 변경</div>' + profileForm() + mediaCard() +
+    return '<h3>설정</h3><div class="sec">내 몸 정보</div>' + basicForm() + faceRow() +
+      '<details class="card adv"><summary><b>더 정확하게 (선택)</b> · 내 치수·선호 핏</summary>' + advForm() + '</details>' +
+      '<details class="card adv"><summary><b>고급</b> · 다른 캐릭터·프로필·초기화</summary>' +
+      '<div class="ucard">' + av + '<div><b>' + h(user.nick) + ' 님</b><div class="note">이 기기 안에 저장된 프로필</div></div></div>' +
+      '<div class="acts"><button class="btn sm" data-act="logout">프로필 바꾸기</button></div>' + mediaCard() +
       '<button class="btn" data-act="open" data-name="cfg">등급 기준 보정</button>' +
       '<button class="btn" data-act="sample">기본 모델 + 예시 옷으로 맞추기</button>' +
-      '<button class="btn danger" data-act="resetAll">이 프로필 데이터 지우기</button>' +
+      '<button class="btn danger" data-act="resetAll">이 프로필 데이터 지우기</button></details>' +
       '<button class="btn p" data-act="closeSheet">완료</button>';
   }
 
@@ -804,13 +892,13 @@
       '<button data-act="open" data-name="settings" class="' + (sheet === 'settings' ? 'on' : '') + '" aria-label="설정">' + IC.gear + '<span>설정</span></button>';
     var sh = '';
     if (sheet) {
-      var half = SHEET_HALF[sheet];
+      var half = SHEET_HALF[sheet] || sheet === 'start';
       sh = '<div class="sheetbg' + (half ? ' lite' : '') + '" data-act="closeSheet"></div><div class="sheet' + (half ? ' half' : '') + '" role="dialog" aria-modal="true"><div class="grab"></div>' + sheetInner(ev) + '</div>';
     }
     return '<div class="reel">' + reelMedia() +
       '<div class="rtop"><div class="rsegs">' + segs + '</div><div class="rbar"><div class="wm">AI FIT</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
       '<div class="rrail">' + rail + '</div>' +
-      '<div class="rcap"><div class="rwho">@' + h(user.nick) + ' · 오늘의 코디</div><div class="fchips">' + (chips || '<span class="fchip">아래 버튼에서 옷을 골라 보세요</span>') + '</div>' +
+      '<div class="rcap"><div class="rwho">@' + h(user.nick) + ' · 오늘의 코디</div><div class="fchips">' + (chips || (E.num(state.profile.height) ? '<span class="fchip">오른쪽 버튼에서 옷을 골라 보세요</span>' : '<button class="fchip" data-act="open" data-name="start">내 키·몸무게 입력하기</button>')) + '</div>' +
       (ev.note ? '<div class="rnote">' + h(ev.note) + '</div>' : '') +
       '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다 · 좌우로 넘겨 동작 바꾸기</div></div>' + sh + '</div>';
   }
@@ -826,8 +914,8 @@
     }
     if (sheet === 'edit' && !state.draft) sheet = editCat;
     if (!E.num(state.profile.height) && !onbShown) {
-      onbShown = true; sheet = 'settings';
-      try { history.pushState({ sh: 'settings' }, ''); } catch (e) {}
+      onbShown = true; sheet = 'start';
+      try { history.pushState({ sh: 'start' }, ''); } catch (e) {}
     }
     var old = root.querySelector('.sheet'), hs = root.querySelector('.hs');
     var st = old && lastSheet === sheet ? old.scrollTop : 0, sl = hs && lastSheet === sheet ? hs.scrollLeft : 0;
@@ -863,8 +951,12 @@
     if ((state.closet.length || state.profile.height) && !confirm('내 정보와 옷장이 기본 모델(여성 ' + MODEL.height + 'cm/' + MODEL.weight + 'kg)과 예시 옷으로 바뀝니다. 계속할까요?')) return;
     state.closet.forEach(function (x) { dropTryon(x.id); });
     state.profile = { gender: MODEL.gender, height: MODEL.height, weight: MODEL.weight, pref: 'fit', m: {} };
-    state.closet = sampleCloset(); state.sel = {}; state.seq = 10; state.feel = {}; state.draft = null;
+    state.closet = sampleCloset(); state.sel = defaultSel(); state.seq = 10; state.feel = {}; state.draft = null;
     save(); render();
+  };
+  ACT.startDone = function () {
+    if (!E.num(state.profile.height)) { var w = root.querySelector('[data-startwarn]'); if (w) w.classList.add('warn'); return; }
+    ACT.closeSheet();
   };
   ACT.clearSel = function (el) { delete state.sel[el.dataset.cat]; save(); render(); };
   var _new = ACT.new, _edit = ACT.edit, _save = ACT.saveDraft, _logout = ACT.logout;

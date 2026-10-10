@@ -17,3 +17,13 @@
 .rmedia img.worn{width:100%;height:100%;object-fit:cover;object-position:top}
 .sheet > *{flex-shrink:0}
 .hs .tile .timg{flex:none}
+
+/* 기본 캐릭터(체형·얼굴 바꾸기) */
+.rmedia.figbg{background:linear-gradient(#ababad,#c3c4c9);overflow:hidden}
+.fig{position:relative;flex:none;height:100%;aspect-ratio:864/1536;transform-origin:50% 100%}
+.rmedia .fig>img{display:block;width:100%;height:100%;max-width:none;max-height:none;object-fit:fill}
+.fig .face{position:absolute;left:50.6%;top:14%;width:17.5%;height:13%;transform:translate(-50%,-50%);border-radius:50%;overflow:hidden;-webkit-mask-image:radial-gradient(ellipse at center,#000 52%,transparent 74%);mask-image:radial-gradient(ellipse at center,#000 52%,transparent 74%)}
+.rmedia .fig .face img{display:block;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover}
+details.adv>summary{cursor:pointer;list-style:none;padding:2px 0}
+details.adv>summary::-webkit-details-marker{display:none}
+details.adv[open]>summary{margin-bottom:8px}
