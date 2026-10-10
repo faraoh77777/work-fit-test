@@ -27,3 +27,8 @@
 details.adv>summary{cursor:pointer;list-style:none;padding:2px 0}
 details.adv>summary::-webkit-details-marker{display:none}
 details.adv[open]>summary{margin-bottom:8px}
+
+/* 하단 설명 영역이 옆의 설정·상세 버튼 위를 덮어 터치를 가로채던 문제 */
+.rcap{pointer-events:none}
+.rcap .fchip,.rcap a,.rcap button{pointer-events:auto}
+.rrail{z-index:3}
