@@ -594,7 +594,6 @@
     return '<div class="rmedia figbg d3" id="rmedia"><div id="d3host"></div><div class="d3legend">' + leg + '</div><button class="d3front" data-act="d3front">정면</button><div class="d3hint">좌우로 밀면 돌아가요</div></div>';
   }
   function updateFig() {
-    if (state.view === '3d') { if (window.Fit3D) Fit3D.update(collect3d(safeEval())); return; }
     var f = root.querySelector('.fbody');
     if (!f) return;
     var sc = bodyScale(); f.style.transform = 'scale(' + sc.kx.toFixed(3) + ',' + sc.ky.toFixed(3) + ')';
@@ -607,7 +606,6 @@
       (custom ? '' : '<svg class="gsvg" viewBox="0 0 864 1536" preserveAspectRatio="none" aria-hidden="true">' + garmentLayer(ev) + '</svg>') + '</div>';
   }
   function reelMedia(ev) {
-    if (state.view === '3d') return d3Media();
     var m = state.motion, inner, badge = '', aiChip = '', worn = wornImage();
     if (worn) { inner = '<img class="worn" alt="' + h(worn.name) + ' 입은 모습" src="' + worn.url + '">'; badge = CATS[worn.cat] + ' · ' + worn.name + ' 입은 모습'; if (state.aiGen && state.aiGen[worn.id]) aiChip = '<button class="aichip" data-act="report">AI 생성 이미지 · 신고/문의</button>'; }
     else if (urls.videos[m]) inner = '<video src="' + urls.videos[m] + '" loop playsinline autoplay muted></video>';
@@ -964,7 +962,7 @@
     try { history.replaceState({ sh: name }, ''); } catch (e) {}
     sheet = name; render();
   }
-  root.addEventListener('touchstart', function (e) { tx = (state.view !== '3d' && e.target.closest('#rmedia')) ? e.touches[0].clientX : null; }, { passive: true });
+  root.addEventListener('touchstart', function (e) { tx = (e.target.closest('#rmedia')) ? e.touches[0].clientX : null; }, { passive: true });
   root.addEventListener('touchend', function (e) {
     if (tx === null) return;
     var dx = e.changedTouches[0].clientX - tx; tx = null;
@@ -1154,7 +1152,6 @@
 
   function viewMain() {
     var ev = safeEval(); lastEv = ev;
-    var segs = [['char', '캐릭터'], ['3d', '3D 핏']].map(function (o) { return '<button data-act="view" data-v="' + o[0] + '" class="' + (state.view === o[0] ? 'on' : '') + '" aria-label="' + o[1] + '"><i></i><span>' + o[1] + '</span></button>'; }).join('');
     var concl = '';
     if (ev.results.length) {
       var r0 = ev.results[0], p0 = r0.current && r0.current.primary;
@@ -1176,7 +1173,7 @@
       sh = '<div class="sheetbg' + (half ? ' lite' : '') + '" data-act="closeSheet"></div><div class="sheet' + (half ? ' half' : '') + '" role="dialog" aria-modal="true"><div class="grab"></div>' + sheetInner(ev) + '</div>';
     }
     return '<div class="reel">' + reelMedia(ev) +
-      '<div class="rtop"><div class="rsegs">' + segs + '</div><div class="rbar"><div class="wm">AI FIT</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
+      '<div class="rtop"><div class="rbar"><div class="wm">AI FIT</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
       '<div class="rrail">' + rail + '</div>' +
       '<div class="rcap"><div class="rwho">@' + h(user.nick) + ' · 오늘의 코디</div>' + concl + '<div class="fchips">' + (chips || (E.num(state.profile.height) ? '<span class="fchip">오른쪽 📷 버튼으로 옷을 추가해 보세요</span>' : '<button class="fchip" data-act="open" data-name="start">내 키·몸무게 입력하기</button>')) + '</div>' +
       (ev.note ? '<div class="rnote">' + h(ev.note) + '</div>' : '') +
@@ -1185,7 +1182,6 @@
 
   function render() {
     if (!user) {
-      if (window.Fit3D) Fit3D.pause();
       root.className = '';
       root.innerHTML = viewLogin();
       loadThumbs();
@@ -1202,10 +1198,6 @@
     var st = old && lastSheet === sheet ? old.scrollTop : 0, sl = hs && lastSheet === sheet ? hs.scrollLeft : 0;
     root.className = 'reelmode';
     root.innerHTML = viewMain();
-    if (window.Fit3D) {
-      var d3h = state.view === '3d' ? root.querySelector('#d3host') : null;
-      if (d3h) { Fit3D.setFace(urls.face ? { url: urls.face, kind: 'selfie' } : { url: DEFAULT_AVATAR, kind: 'avatar' }); Fit3D.mount(d3h, collect3d(lastEv)); } else Fit3D.pause();
-    }
     lastSheet = sheet;
     var ns = root.querySelector('.sheet'), nh = root.querySelector('.hs');
     if (ns) ns.scrollTop = st;
@@ -1226,8 +1218,6 @@
   });
 
   ACT.open = function (el) { openSheet(el.dataset.name); };
-  ACT.view = function (el) { state.view = el.dataset.v === 'char' ? 'char' : '3d'; save(); render(); };
-  ACT.d3front = function () { if (window.Fit3D) Fit3D.front(); };
   ACT.closeSheet = function () {
     if (history.state && history.state.sh) history.back();
     else { sheet = null; state.draft = null; render(); }
