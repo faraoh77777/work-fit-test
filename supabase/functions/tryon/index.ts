@@ -2,8 +2,8 @@
 // 이미지 생성은 TopView API 를 쓴다. 키(TOPVIEW_UID, TOPVIEW_API_KEY)는 Supabase Secrets 에만 둔다.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const TV_UID = Deno.env.get("TOPVIEW_UID") ?? "";
-const TV_KEY = Deno.env.get("TOPVIEW_API_KEY") ?? "";
+const TV_UID = (Deno.env.get("TOPVIEW_UID") ?? "").trim();
+const TV_KEY = (Deno.env.get("TOPVIEW_API_KEY") ?? "").trim().replace(/^Bearer\s+/i, "");
 const TV_MODEL = Deno.env.get("TOPVIEW_IMAGE_MODEL") ?? "GPT Image 2";
 const TV_BASE = "https://api.topview.ai";
 const AVATAR_URL = Deno.env.get("AVATAR_URL") ?? "https://faraoh77777.github.io/work-fit-test/assets/avatar_default.jpg";
