@@ -1175,7 +1175,7 @@
     return '<div class="reel">' + reelMedia(ev) +
       '<div class="rtop"><div class="rbar"><div class="wm">AI FIT</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
       '<div class="rrail">' + rail + '</div>' +
-      '<div class="rcap"><div class="rwho">@' + h(user.nick) + ' · 오늘의 코디</div>' + concl + '<div class="fchips">' + (chips || (E.num(state.profile.height) ? '<span class="fchip">오른쪽 📷 버튼으로 옷을 추가해 보세요</span>' : '<button class="fchip" data-act="open" data-name="start">내 키·몸무게 입력하기</button>')) + '</div>' +
+      '<div class="rcap"><div class="rwho">@' + h(user.nick) + ' · 오늘의 코디</div>' + concl + (ev.results.length ? '' : '<div class="fchips">') + (chips && ev.results.length ? '' : (E.num(state.profile.height) ? '<span class="fchip">오른쪽 📷 버튼으로 옷을 추가해 보세요</span>' : '<button class="fchip" data-act="open" data-name="start">내 키·몸무게 입력하기</button>')) + (ev.results.length ? '' : '</div>') +
       (ev.note ? '<div class="rnote">' + h(ev.note) + '</div>' : '') +
       '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다 · 좌우로 넘겨 동작 바꾸기</div></div>' + sh + '</div>';
   }
