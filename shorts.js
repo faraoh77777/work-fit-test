@@ -25,7 +25,7 @@
   function sampleCloset() {
     function sz(label, o) { var r = { label: label }; Object.keys(o).forEach(function (k) { r[k] = String(o[k]); }); return r; }
     return [
-      { id: 'p1', cat: 'top', name: '예시 쿠팡 초록 카라 티셔츠', measureType: 'circ', fabric: 'normal', photo: '', price: '13900', url: '', isRef: false, refSize: '', sizes: [
+      { id: 'p1', cat: 'top', name: '예시 카라 티셔츠', measureType: 'circ', fabric: 'normal', photo: '', price: '', url: '', isRef: false, refSize: '', sizes: [
         sz('M', { length: 59, shoulder: 35.5, chest: 88, sleeve: 54 }), sz('L', { length: 60, shoulder: 37, chest: 92, sleeve: 55 }),
         sz('XL', { length: 61, shoulder: 39.5, chest: 96, sleeve: 56 }), sz('2XL', { length: 62, shoulder: 41, chest: 100, sleeve: 57 }),
         sz('3XL', { length: 63, shoulder: 43.5, chest: 104, sleeve: 58 }), sz('4XL', { length: 64, shoulder: 45, chest: 108, sleeve: 59 })] },
@@ -53,7 +53,7 @@
   function defaultSel() { return { top: { id: 'p1', size: null }, bottom: { id: 'p3', size: null }, shoe: { id: 'p4', size: null } }; }
   function blankState() {
     return { step: 'profile', profile: { gender: 'male', height: '', weight: '', pref: 'fit', m: {} },
-      closet: [], sel: {}, draft: null, motion: 0, cfg: null, feel: {}, seq: 1 };
+      closet: [], sel: {}, draft: null, motion: 0, cfg: null, feel: {}, seq: 1, aiGen: {} };
   }
   /* ---------- 프로필(이 기기 안 로그인) ---------- */
   function readUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch (e) { return []; } }
@@ -128,6 +128,7 @@
   function blobDel(k) { return rawDel(bk(k)); }
   var MEDIA_KEYS = ['avatar', 'video0', 'video1', 'video2', 'face'];
   var DEFAULT_AVATAR = 'assets/avatar_default.jpg';
+  var APP_VERSION = '1.0.0';
 
   function clearUrls() {
     if (urls.avatar) URL.revokeObjectURL(urls.avatar);
@@ -415,7 +416,7 @@
   function captureCards(d) {
     var st = ocr.busy ? '<span class="tag">읽는 중</span>' : (ocr.msg ? '<span class="tag' + (ocr.ok ? ' real' : '') + '">' + (ocr.ok ? '읽음' : '확인 필요') + '</span>' : '');
     return '<div class="card"><div class="h"><span>① 사이즈표 캡처</span>' + st + '</div>' +
-      '<div class="note">쿠팡 상품 페이지의 사이즈표(실측표)를 캡처해서 올리면 아래 실측표를 자동으로 채웁니다. 인식이 틀릴 수 있으니 꼭 확인해 주세요.</div>' +
+      '<div class="note">쇼핑몰 상품 페이지의 사이즈표(실측표)를 캡처해서 올리면 아래 실측표를 자동으로 채웁니다. 인식이 틀릴 수 있으니 꼭 확인해 주세요.</div>' +
       '<label class="btn sm" style="cursor:pointer;align-self:flex-start">' + (ocr.busy ? '읽는 중…' : '사이즈표 사진 선택') + '<input type="file" accept="image/*" data-file="sizeCap" hidden' + (ocr.busy ? ' disabled' : '') + '></label>' +
       (ocr.msg ? '<div data-ocrmsg class="' + (ocr.ok ? 'note' : 'warn') + '">' + h(ocr.msg) + '</div>' : '') + '</div>' +
       '<div class="card"><div class="h"><span>② 상품 사진 캡처</span>' + (d.photo ? '<span class="tag real">등록됨</span>' : '') + '</div>' +
@@ -477,7 +478,7 @@
     var c = ['top', 'bottom', 'shoe'];
     for (var i = 0; i < c.length; i++) {
       var s = state.sel[c[i]], it = s && item(s.id);
-      if (it && urls.tryon[it.id]) return { cat: c[i], name: it.name, url: urls.tryon[it.id] };
+      if (it && urls.tryon[it.id]) return { id: it.id, cat: c[i], name: it.name, url: urls.tryon[it.id] };
     }
     return null;
   }
@@ -573,11 +574,11 @@
       (custom ? '' : '<svg class="gsvg" viewBox="0 0 864 1536" preserveAspectRatio="none" aria-hidden="true">' + garmentLayer(ev) + '</svg>') + '</div>';
   }
   function reelMedia(ev) {
-    var m = state.motion, inner, badge = '', worn = wornImage();
-    if (worn) { inner = '<img class="worn" alt="' + h(worn.name) + ' 입은 모습" src="' + worn.url + '">'; badge = CATS[worn.cat] + ' · ' + worn.name + ' 입은 모습'; }
+    var m = state.motion, inner, badge = '', aiChip = '', worn = wornImage();
+    if (worn) { inner = '<img class="worn" alt="' + h(worn.name) + ' 입은 모습" src="' + worn.url + '">'; badge = CATS[worn.cat] + ' · ' + worn.name + ' 입은 모습'; if (state.aiGen && state.aiGen[worn.id]) aiChip = '<button class="aichip" data-act="report">AI 생성 이미지 · 신고/문의</button>'; }
     else if (urls.videos[m]) inner = '<video src="' + urls.videos[m] + '" loop playsinline autoplay muted></video>';
     else inner = figure(ev);
-    return '<div class="rmedia' + (inner.indexOf('class="fig"') === 0 ? ' figbg' : '') + '" id="rmedia">' + inner + (badge ? '<span class="rbadge">' + h(badge) + '</span>' : '') + '</div>';
+    return '<div class="rmedia' + (inner.indexOf('class="fig"') === 0 ? ' figbg' : '') + '" id="rmedia">' + inner + (badge ? '<span class="rbadge">' + h(badge) + '</span>' : '') + aiChip + '</div>';
   }
   var IC = {
     list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
@@ -822,6 +823,7 @@
   function dropTryon(id) {
     if (urls.tryon[id]) URL.revokeObjectURL(urls.tryon[id]);
     delete urls.tryon[id];
+    if (state.aiGen) { delete state.aiGen[id]; save(); }
     blobDel('tryon:' + id).catch(function () {});
   }
   function handleFile(kind, file) {
@@ -831,7 +833,7 @@
     } else if (kind.indexOf('tryon:') === 0) {
       var tid = kind.slice(6);
       if (!item(tid)) return;
-      shrink(file, 1400, 0.9).then(function (b) { return blobPut(kind, b).then(function () { if (urls.tryon[tid]) URL.revokeObjectURL(urls.tryon[tid]); urls.tryon[tid] = URL.createObjectURL(b); render(); }); })
+      shrink(file, 1400, 0.9).then(function (b) { return blobPut(kind, b).then(function () { if (urls.tryon[tid]) URL.revokeObjectURL(urls.tryon[tid]); urls.tryon[tid] = URL.createObjectURL(b); if (state.aiGen) { delete state.aiGen[tid]; save(); } render(); }); })
         .catch(function () { alert('입은 모습 이미지를 저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.'); });
     } else if (kind === 'addCap') {
       processImages([file]);
@@ -1007,6 +1009,7 @@
         return blobPut('tryon:' + id, blob).then(function () {
           if (urls.tryon[id]) URL.revokeObjectURL(urls.tryon[id]);
           urls.tryon[id] = URL.createObjectURL(blob);
+          state.aiGen = state.aiGen || {}; state.aiGen[id] = true; save();
           var it = item(id);
           genFinish(id, true, (it ? it.name : '옷') + ' 입은 모습이 완성됐어요!');
         });
@@ -1021,7 +1024,7 @@
     if (!it.photo) { alert('먼저 이 옷의 상품 사진을 올려 주세요. (수정 → 상품 사진)'); return; }
     var first = false;
     try { first = !localStorage.getItem('fit-gen-ok'); } catch (e) { first = true; }
-    if (first && !confirm('상품 사진이 AI 이미지 생성 서버로 전송됩니다. 하루 이용 횟수가 정해져 있어요. 계속할까요?')) return;
+    if (first && !confirm('이 옷의 상품 사진이 AI 이미지 생성 서버(Supabase·TopView)로 전송되어 입은 모습을 만듭니다. 내 얼굴 사진과 몸 정보는 전송되지 않아요. 만들어진 이미지는 AI가 생성한 것이라 실제 상품과 다를 수 있고, 하루 이용 횟수가 정해져 있습니다. 계속할까요?')) return;
     if (urls.tryon[it.id] && !confirm('이미 만든 입은 모습이 있습니다. 다시 만들면 하루 이용 횟수가 한 번 더 쓰입니다. 계속할까요?')) return;
     try { localStorage.setItem('fit-gen-ok', '1'); } catch (e) {}
     var id = it.id;
@@ -1068,6 +1071,16 @@
         '<div class="note">추정 결과이며 실제 착용감을 보장하지 않습니다.</div><button class="btn" data-act="closeSheet">닫기</button>';
     }
     if (sheet === 'cfg') { openCfg = true; return '<h3>등급 기준 보정</h3>' + cfgPanel() + '<button class="btn" data-act="closeSheet">닫기</button>'; }
+    if (sheet === 'about') {
+      var st = window.STORE || {}, mail = st.email ? 'mailto:' + encodeURIComponent(st.email) : '';
+      return '<h3>정보·문의</h3>' +
+        '<div class="card"><div class="h"><span>AI FIT ' + h(APP_VERSION) + '</span></div><div class="note">쇼핑몰의 사이즈표와 상품 사진을 캡처해 올리면 내 체형에 맞는 사이즈를 추정해 주는 앱입니다.</div></div>' +
+        '<div class="card"><div class="h"><span>AI 생성 이미지 안내</span></div><div class="note">"AI로 입혀 보기"로 만든 이미지는 AI가 생성한 것으로 실제 상품의 색·모양·착용감과 다를 수 있습니다. 사이즈 판정은 입력한 치수를 바탕으로 한 추정이며 실제 착용감을 보장하지 않습니다.</div></div>' +
+        '<div class="card"><div class="h"><span>내 정보는 어디에 저장되나요?</span></div><div class="note">성별·키·몸무게·치수, 옷장, 얼굴 사진은 이 기기 안에만 저장됩니다. AI로 입혀 보기를 쓸 때만 해당 옷의 상품 사진이 서버로 전송됩니다. 앱 데이터를 지우거나 설정의 "이 프로필 데이터 지우기"를 누르면 기기의 정보가 삭제됩니다.</div></div>' +
+        '<div class="acts"><a class="btn" href="privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>' + (mail ? '<a class="btn" href="' + mail + '?subject=' + encodeURIComponent('[AI FIT] 문의·신고') + '">문의·신고 메일</a>' : '') + '</div>' +
+        (mail ? '' : '<div class="note">문의·신고 연락처는 개인정보처리방침 페이지에서 확인할 수 있어요.</div>') +
+        '<button class="btn p" data-act="closeSheet">닫기</button>';
+    }
     if (sheet === 'add') {
       var busyMsg = ocr.msg ? '<div data-ocrmsg class="' + (ocr.ok ? 'note' : 'warn') + '">' + h(ocr.msg) + '</div>' : '';
       return '<h3>옷 추가</h3><div class="note">쇼핑몰에서 <b>사이즈표를 캡처</b>해서 올리면 치수를 자동으로 읽고, 상의·하의·신발도 알아서 구분합니다. 상품 사진 캡처와 <b>한 번에 같이 선택</b>해도 됩니다.</div>' +
@@ -1086,7 +1099,7 @@
         '<div class="acts"><button class="btn" data-act="open" data-name="add">＋ 옷 추가</button><button class="btn p" data-act="closeSheet">완료</button></div>';
     }
     if (sheet === 'start') {
-      return '<h3>내 몸 정보</h3><div class="note">키와 몸무게를 넣으면 캐릭터가 내 체형으로 바뀝니다. 아래 치수는 <b>모르면 비워 두세요.</b> 키·몸무게로 자동 계산한 값을 대신 씁니다.</div>' + basicForm() + faceRow() +
+      return '<h3>내 몸 정보</h3><div class="note">키와 몸무게를 넣으면 캐릭터가 내 체형으로 바뀝니다. 아래 치수는 <b>모르면 비워 두세요.</b> 키·몸무게로 자동 계산한 값을 대신 씁니다. 입력한 정보와 얼굴 사진은 이 기기 안에만 저장돼요.</div>' + basicForm() + faceRow() +
         '<div class="sec">내 치수 (모르면 비워 두기)</div>' + advForm(true) +
         (!E.num(state.profile.height) ? '<div class="note" data-startwarn>키를 입력하면 시작할 수 있어요.</div>' : '') +
         '<button class="btn p" data-act="startDone">시작하기</button>';
@@ -1101,6 +1114,7 @@
       '<button class="btn" data-act="open" data-name="cfg">등급 기준 보정</button>' +
       '<button class="btn" data-act="sample">기본 모델 + 예시 옷으로 맞추기</button>' +
       '<button class="btn danger" data-act="resetAll">이 프로필 데이터 지우기</button></details>' +
+      '<button class="btn" data-act="open" data-name="about">정보·문의·개인정보처리방침</button>' +
       '<button class="btn p" data-act="closeSheet">완료</button>';
   }
 
@@ -1194,6 +1208,11 @@
       if ((cur == null || cur === '') && est[f[0]] != null) state.profile.m[f[0]] = String(Math.round(est[f[0]] * 10) / 10);
     });
     save(); render(); updateFig();
+  };
+  ACT.report = function () {
+    var st = window.STORE || {};
+    if (st.email) { location.href = 'mailto:' + encodeURIComponent(st.email) + '?subject=' + encodeURIComponent('[AI FIT] AI 생성 이미지 신고') + '&body=' + encodeURIComponent('신고할 내용을 적어 주세요.\n(옷 이름: ' + ((wornImage() || {}).name || '') + ')'); }
+    else openSheet('about');
   };
   ACT.startDone = function () {
     if (!E.num(state.profile.height)) { var w = root.querySelector('[data-startwarn]'); if (w) w.classList.add('warn'); return; }

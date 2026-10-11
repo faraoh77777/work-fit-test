@@ -43,5 +43,40 @@
         }
       ]
     }
-  }
+  },
+  "id": "./shorts.html",
+  "categories": [
+    "shopping",
+    "lifestyle"
+  ],
+  "screenshots": [
+    {
+      "src": "assets/store/ss1_main.jpg",
+      "sizes": "720x1280",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "내 체형에 맞는 사이즈를 한눈에"
+    },
+    {
+      "src": "assets/store/ss4_ai.jpg",
+      "sizes": "720x1280",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "AI로 옷 입은 모습 보기"
+    },
+    {
+      "src": "assets/store/ss2_closet.jpg",
+      "sizes": "720x1280",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "내 옷장에서 갈아입혀 비교"
+    },
+    {
+      "src": "assets/store/ss3_add.jpg",
+      "sizes": "720x1280",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "사이즈표 캡처만 올리면 자동 입력"
+    }
+  ]
 }

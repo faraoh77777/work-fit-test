@@ -128,6 +128,8 @@ Deno.serve(async (req) => {
   if (!garment || garment.length > MAX_B64) return json(req, 400, { error: "상품 사진이 없거나 너무 큽니다." });
 
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  // 30일이 지난 이용 기록은 지운다(개인정보처리방침의 보관 기간)
+  await sb.from("tryon_usage").delete().lt("day", new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
   const take = await sb.rpc("tryon_take", { p_device: device, p_dev_limit: DEV_LIMIT, p_global_limit: GLOBAL_LIMIT });
   if (take.error) return json(req, 500, { error: "사용량 확인에 실패했습니다." });
   if (!take.data) return json(req, 429, { error: "오늘 입혀 보기 횟수를 모두 썼습니다. 내일 다시 이용해 주세요." });
