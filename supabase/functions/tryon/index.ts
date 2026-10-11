@@ -7,6 +7,7 @@ const TV_KEY = (Deno.env.get("TOPVIEW_API_KEY") ?? "").trim().replace(/^Bearer\s
 const TV_MODEL = Deno.env.get("TOPVIEW_IMAGE_MODEL") ?? "GPT Image 2";
 const TV_BASE = "https://api.topview.ai";
 const AVATAR_URL = Deno.env.get("AVATAR_URL") ?? "https://faraoh77777.github.io/work-fit-test/assets/avatar_default.jpg";
+const AVATAR_URL_MALE = Deno.env.get("AVATAR_URL_MALE") ?? "https://faraoh77777.github.io/work-fit-test/assets/avatar_male.jpg";
 const DEV_LIMIT = Number(Deno.env.get("DAILY_LIMIT") ?? "5");
 const GLOBAL_LIMIT = Number(Deno.env.get("GLOBAL_DAILY_LIMIT") ?? "100");
 const ALLOWED = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://faraoh77777.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",");
@@ -18,6 +19,10 @@ const PROMPTS: Record<string, string> = {
   shoe: "Image 1 is a full-body photo of a woman standing barefoot. Image 2 is a product photo of shoes. Edit image 1 so she wears exactly the shoes shown in image 2 (same color and design).",
 };
 const KEEP = " Keep her face, hair, pose, body proportions, the other clothing, the plain gray background and the framing unchanged. Photorealistic result. Do not add text, logos or accessories.";
+
+function toMale(t: string, male: boolean) {
+  return male ? t.replace(/a woman/g, "a man").replace(/she/g, "he").replace(/her/g, "his") : t;
+}
 
 function cors(req: Request) {
   const o = req.headers.get("origin") ?? "";
@@ -76,13 +81,13 @@ function findImageUrl(o: unknown): string {
   return "";
 }
 /* 접수: 사진 두 장을 올리고 편집 요청만 보낸 뒤 번호(taskId)를 돌려준다. 오래 붙잡지 않는다 */
-async function submitTopview(cat: string, garmentBytes: Uint8Array, garmentExt: string, garmentMime: string) {
-  const av = await fetch(AVATAR_URL);
+async function submitTopview(male: boolean, cat: string, garmentBytes: Uint8Array, garmentExt: string, garmentMime: string) {
+  const av = await fetch(male ? AVATAR_URL_MALE : AVATAR_URL);
   if (!av.ok) throw new Error("avatar");
   const avBytes = new Uint8Array(await av.arrayBuffer());
   const [avId, gId] = await Promise.all([tvUpload(avBytes, "jpg", "image/jpeg"), tvUpload(garmentBytes, garmentExt, garmentMime)]);
   const sub = await tvPost("/v1/common_task/image_edit/task/submit", {
-    model: TV_MODEL, prompt: PROMPTS[cat] + KEEP, aspectRatio: "9:16", resolution: "1K", generateCount: 1, inputImageFileIds: [avId, gId],
+    model: TV_MODEL, prompt: toMale(PROMPTS[cat] + KEEP, male), aspectRatio: "9:16", resolution: "1K", generateCount: 1, inputImageFileIds: [avId, gId],
   });
   const taskId = sub.taskId;
   if (!taskId) throw new Error("topview no taskId " + JSON.stringify(sub).slice(0, 200));
@@ -109,7 +114,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json(req, 405, { error: "POST 만 가능합니다." });
   if (!(TV_UID && TV_KEY)) return json(req, 500, { error: "서버에 이미지 생성 키가 설정되지 않았습니다." });
 
-  let body: { action?: string; taskId?: string; device?: string; cat?: string; garment?: string };
+  let body: { action?: string; taskId?: string; device?: string; cat?: string; garment?: string; gender?: string };
   try { body = await req.json(); } catch { return json(req, 400, { error: "요청 형식이 올바르지 않습니다." }); }
   if (body.action === "status") {
     const tid = String(body.taskId ?? "");
@@ -136,7 +141,7 @@ Deno.serve(async (req) => {
 
   try {
     const bytes = b64ToBytes(garment);
-    const taskId = await submitTopview(cat, bytes, ext, mime);
+    const taskId = await submitTopview(body.gender === "male", cat, bytes, ext, mime);
     return json(req, 200, { taskId });
   } catch (e) {
     console.error("submit failed:", (e as Error).message);

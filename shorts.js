@@ -21,7 +21,7 @@
     ['rise', '밑위(앞)', 'cm'], ['foot', '발길이', 'mm']
   ];
   /* 기본 모델 = 앱에 연결하는 30대 여성 캐릭터. 제작 설정에 숫자가 없어 '중간 키·슬림'을 표준값으로 가정한 것이므로 설정에서 바꿀 수 있다 */
-  var MODEL = { gender: 'female', height: '162', weight: '50' };
+  var MODEL = { gender: 'female', height: '162', weight: '50' }, MALE_MODEL = { gender: 'male', height: '175', weight: '68' };
   function sampleCloset() {
     function sz(label, o) { var r = { label: label }; Object.keys(o).forEach(function (k) { r[k] = String(o[k]); }); return r; }
     return [
@@ -131,7 +131,8 @@
   function blobPut(k, v) { return rawPut(bk(k), v); }
   function blobDel(k) { return rawDel(bk(k)); }
   var MEDIA_KEYS = ['avatar', 'video0', 'video1', 'video2', 'face'];
-  var DEFAULT_AVATAR = 'assets/avatar_default.jpg';
+  var DEFAULT_AVATAR = 'assets/avatar_default.jpg', MALE_AVATAR = 'assets/avatar_male.jpg';
+  function isMale() { return !!(state && state.profile && state.profile.gender === 'male'); }
   var APP_VERSION = '1.0.0';
 
   function clearUrls() {
@@ -491,7 +492,8 @@
     try {
       var p = state.profile, hh = E.num(p.height);
       if (!hh) return { kx: 1, ky: 1 };
-      var base = E.bodyOf({ gender: MODEL.gender, height: MODEL.height, weight: MODEL.weight, pref: 'fit', m: {} }, cfgNow()).vals;
+      var bm = isMale() ? MALE_MODEL : MODEL;
+      var base = E.bodyOf({ gender: bm.gender, height: bm.height, weight: bm.weight, pref: 'fit', m: {} }, cfgNow()).vals;
       var cur = E.bodyOf(p, cfgNow()).vals, sum = 0, n = 0;
       ['chest', 'waist', 'hip'].forEach(function (k) {
         var a = E.num(cur[k]), b = E.num(base[k]);
@@ -499,7 +501,7 @@
       });
       var ratio = n ? sum / n : 1;
       var kx = Math.max(0.84, Math.min(1.3, 1 + (ratio - 1) * 0.9));
-      var ky = Math.max(0.93, Math.min(1.07, hh / Number(MODEL.height)));
+      var ky = Math.max(0.93, Math.min(1.07, hh / Number(bm.height)));
       return { kx: kx, ky: ky };
     } catch (e) { return { kx: 1, ky: 1 }; }
   }
@@ -546,7 +548,7 @@
     var waist = circOf(it, row.waist), hip = circOf(it, row.hip); if (!waist && !hip) return '';
     waist = waist || hip * 0.85; hip = Math.max(hip || waist * 1.15, waist);
     var thigh = circOf(it, row.thigh) || hip * 0.6;
-    var yw = Y(655), rise = E.num(row.rise) || 26, ycr = yw + rise * GS, yh = ycr + (E.num(row.inseam) || 72) * GS;
+    var yw = Y(isMale() ? 700 : 655), rise = E.num(row.rise) || 26, ycr = yw + rise * GS, yh = ycr + (E.num(row.inseam) || 72) * GS;
     var hw = waist / Math.PI * GS / 2, hh = hip / Math.PI * GS / 2, oc = Math.max(hh, thigh / Math.PI * GS), ho = oc * 0.8;
     function pt(x, y) { return x.toFixed(1) + ' ' + y.toFixed(1); }
     var d = 'M' + pt(GCX - hw, yw) + ' L' + pt(GCX - hh, yw + 110) + ' L' + pt(GCX - oc, ycr) + ' L' + pt(GCX - ho, yh) + ' L' + pt(GCX - 14, yh) + ' L' + pt(GCX, ycr - 10) +
@@ -554,6 +556,7 @@
     return '<path d="' + d + '" fill="' + col + '" fill-opacity="0.94" stroke="rgba(0,0,0,.35)" stroke-width="3" stroke-linejoin="round"/>';
   }
   function garmentLayer(ev) {
+    GS = isMale() ? 7.96 : 8.36;
     var ky = bodyScale().ky, out = '';
     function Y(y) { return GH - (GH - y) * ky; }
     ['bottom', 'top'].forEach(function (cat) {
@@ -600,9 +603,9 @@
     var g = root.querySelector('.gsvg'); if (g) g.innerHTML = garmentLayer(safeEval());
   }
   function figure(ev) {
-    var sc = bodyScale(), custom = !!urls.avatar, src = custom ? urls.avatar : DEFAULT_AVATAR;
+    var sc = bodyScale(), custom = !!urls.avatar, male = isMale(), src = custom ? urls.avatar : (male ? MALE_AVATAR : DEFAULT_AVATAR);
     var face = (!custom && urls.face) ? '<span class="face"><img alt="" src="' + urls.face + '"></span>' : '';
-    return '<div class="fig"><div class="fbody" style="transform:scale(' + sc.kx.toFixed(3) + ',' + sc.ky.toFixed(3) + ')"><img alt="내 캐릭터" src="' + src + '">' + face + '</div>' +
+    return '<div class="fig' + (male && !custom ? ' male' : '') + '"><div class="fbody" style="transform:scale(' + sc.kx.toFixed(3) + ',' + sc.ky.toFixed(3) + ')"><img alt="내 캐릭터" src="' + src + '">' + face + '</div>' +
       (custom ? '' : '<svg class="gsvg" viewBox="0 0 864 1536" preserveAspectRatio="none" aria-hidden="true">' + garmentLayer(ev) + '</svg>') + '</div>';
   }
   function reelMedia(ev) {
@@ -1061,7 +1064,7 @@
     try { localStorage.setItem('fit-gen-ok', '1'); } catch (e) {}
     var id = it.id;
     genPending = id; render();
-    genCall({ device: deviceId(), cat: it.cat, garment: it.photo }).then(function (res) {
+    genCall({ device: deviceId(), cat: it.cat, garment: it.photo, gender: isMale() ? 'male' : 'female' }).then(function (res) {
       if (!res.ok || !res.j.taskId) throw new Error((res.j && res.j.error) || '요청을 접수하지 못했습니다.');
       var t0 = Date.now();
       try { localStorage.setItem(GEN_KEY(), JSON.stringify({ id: id, taskId: res.j.taskId, t0: t0 })); } catch (e) {}
