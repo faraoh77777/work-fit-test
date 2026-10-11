@@ -1198,6 +1198,7 @@
     var st = old && lastSheet === sheet ? old.scrollTop : 0, sl = hs && lastSheet === sheet ? hs.scrollLeft : 0;
     root.className = 'reelmode';
     root.innerHTML = viewMain();
+    (function () { var c = root.querySelector('.rcap'), m = root.querySelector('.rmedia'); if (c && m && m.querySelector('.fig')) m.style.bottom = c.offsetHeight + 'px'; })();
     lastSheet = sheet;
     var ns = root.querySelector('.sheet'), nh = root.querySelector('.hs');
     if (ns) ns.scrollTop = st;

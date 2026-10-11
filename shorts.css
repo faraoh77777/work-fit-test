@@ -55,3 +55,9 @@ a.btn{display:block;text-align:center;text-decoration:none;color:inherit}
 .d3front{position:absolute;right:12px;top:142px;z-index:3;background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:99px;font:inherit;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer}
 .d3hint{position:absolute;left:12px;bottom:calc(env(safe-area-inset-bottom) + 262px);z-index:3;font-size:11px;color:rgba(255,255,255,.9);text-shadow:0 1px 4px rgba(0,0,0,.5);pointer-events:none;white-space:nowrap}
 .d3off{padding:120px 24px;text-align:center;color:#fff;line-height:1.6}
+
+/* 글씨는 캐릭터 위가 아니라 아래 별도 칸에 */
+.rcap{background:#141416;padding-top:14px}
+.rmedia{align-items:flex-end}
+.rcap .rwho{opacity:.8}
+.rmedia:has(.fig){background:linear-gradient(#ababad,#c3c4c9);overflow:hidden}
