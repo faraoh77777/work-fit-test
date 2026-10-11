@@ -1200,7 +1200,7 @@
     root.innerHTML = viewMain();
     if (window.Fit3D) {
       var d3h = state.view === '3d' ? root.querySelector('#d3host') : null;
-      if (d3h) Fit3D.mount(d3h, collect3d(lastEv)); else Fit3D.pause();
+      if (d3h) { Fit3D.setFace(urls.face ? { url: urls.face, kind: 'selfie' } : { url: DEFAULT_AVATAR, kind: 'avatar' }); Fit3D.mount(d3h, collect3d(lastEv)); } else Fit3D.pause();
     }
     lastSheet = sheet;
     var ns = root.querySelector('.sheet'), nh = root.querySelector('.hs');

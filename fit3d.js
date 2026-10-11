@@ -6,7 +6,7 @@
   var T = root.THREE;
   var N = 28;                                           /* 둘레를 나누는 면 수 */
   var HEAT = { tightBad: 0xd64545, tight: 0xe8913a, fit: 0x34a56a, loose: 0x4a90d9, over: 0x8b6fd1 };
-  var S = { renderer: null, scene: null, camera: null, group: null, host: null, raf: 0, rotY: 0, drag: false, lastX: 0, spinAt: 0, ok: null, key: '' };
+  var S = { faceTex: null, skin: 0xd9cfc6, faceUrl: '', lastData: null, renderer: null, scene: null, camera: null, group: null, host: null, raf: 0, rotY: 0, drag: false, lastX: 0, spinAt: 0, ok: null, key: '' };
 
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   /* 둘레 C, 앞뒤/좌우 비율 k 인 타원의 반지름 [좌우 a, 앞뒤 b] (라마누잔 근사) */
@@ -79,7 +79,7 @@
   function addMesh(g, geo, m) { var me = new T.Mesh(geo, m); g.add(me); return me; }
 
   function buildBody(g, v, b) {
-    var skin = mat(0xd9cfc6, 1), H = b.H;
+    var skin = mat(S.skin, 1), H = b.H, hair = mat(0x33231c, 1);
     addMesh(g, loft(b.torso, true, true), skin);
     [-1, 1].forEach(function (s) {
       var legs = b.legRings.map(function (r) { return { y: r.y, cx: s * b.xl, cz: 0, rx: r.rx, rz: r.rz }; });
@@ -90,7 +90,17 @@
     });
     var neck = [{ y: 0.835 * H, cx: 0, cz: 0, rx: 5.4, rz: 5.8 }, { y: H - 19, cx: 0, cz: 0.5, rx: 5.0, rz: 5.4 }];
     addMesh(g, loft(neck, false, false), skin);
-    var head = addMesh(g, new T.SphereGeometry(1, 24, 18), skin); head.scale.set(7.4, 10.3, 9); head.position.set(0, H - 10.3, 0.6);
+    var hy = H - 10.3;
+    var head = addMesh(g, new T.SphereGeometry(1, 24, 18), skin); head.scale.set(7.4, 10.3, 9); head.position.set(0, hy, 0.6);
+    /* 머리카락: 윗머리(이마 위까지) + 뒷머리(어깨까지 내려오는 긴 머리) */
+    var cap = addMesh(g, new T.SphereGeometry(1, 24, 18, 0, Math.PI * 2, 0, 1.0), hair); cap.scale.set(7.75, 10.7, 9.4); cap.position.set(0, hy, 0.5);
+    var back = addMesh(g, new T.SphereGeometry(1, 24, 18, Math.PI, Math.PI, 0, 2.35), hair); back.scale.set(8.0, 13.5, 8.3); back.position.set(0, hy - 3.2, 0.2);
+    /* 얼굴: 캐릭터(또는 내 얼굴) 사진을 머리 앞면에 곡면으로 붙인다 */
+    if (S.faceTex) {
+      var fm = new T.MeshBasicMaterial({ map: S.faceTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      var face = new T.Mesh(new T.SphereGeometry(1, 28, 20, Math.PI / 2 - 0.86, 1.72, 0.9, 1.85), fm);
+      face.scale.set(7.45, 10.35, 9.05); face.position.set(0, hy, 0.6); face.renderOrder = 2; g.add(face);
+    }
   }
 
   function buildTop(g, v, b, gar) {
@@ -133,7 +143,8 @@
   function build(data) {
     var v = data.body;
     if (!v || !v.height) return;
-    var key = JSON.stringify(data);
+    S.lastData = data;
+    var key = JSON.stringify(data) + '|' + S.faceUrl;
     if (key === S.key) return;
     S.key = key;
     var old = S.group;
@@ -193,10 +204,43 @@
     if (!S.raf) S.raf = requestAnimationFrame(loop);
     return true;
   }
+  /* 얼굴 사진 설정. kind 'avatar' = 기본 캐릭터 전신 사진(얼굴 위치를 알고 있음), 'selfie' = 내 얼굴 정사각 사진 */
+  function setFace(spec) {
+    if (!spec || !spec.url || S.faceUrl === spec.url) return;
+    S.faceUrl = spec.url;
+    var im = new Image();
+    im.onload = function () {
+      if (S.faceUrl !== spec.url) return;
+      var c = document.createElement('canvas'); c.width = 256; c.height = 384;
+      var x = c.getContext('2d');
+      if (spec.kind === 'avatar') {
+        var k = im.width / 864;                                      /* 기본 캐릭터 사진(864x1536) 기준 좌표 */
+        x.drawImage(im, 366 * k, 118 * k, 142 * k, 188 * k, 0, 0, 256, 384);
+        try {                                                        /* 뺨 색을 피부색으로 */
+          var t = document.createElement('canvas'); t.width = t.height = 8; var tx = t.getContext('2d');
+          tx.drawImage(im, 392 * k, 236 * k, 16 * k, 16 * k, 0, 0, 8, 8);
+          var d = tx.getImageData(0, 0, 8, 8).data, r = 0, g2 = 0, bl = 0, n = 0;
+          for (var i = 0; i < d.length; i += 4) { r += d[i]; g2 += d[i + 1]; bl += d[i + 2]; n++; }
+          S.skin = (Math.round(r / n) << 16) | (Math.round(g2 / n) << 8) | Math.round(bl / n);
+        } catch (e) { /* 색을 못 읽으면 기본 피부색 */ }
+      } else {
+        var m = Math.min(im.width, im.height);
+        x.drawImage(im, im.width / 2 - m * 0.34, im.height / 2 - m * 0.40, m * 0.68, m * 0.78, 0, 0, 256, 384);
+      }
+      x.globalCompositeOperation = 'destination-in';                 /* 가장자리를 부드럽게 지워 피부색과 이어 붙임 */
+      var gr = x.createRadialGradient(128, 200, 20, 128, 200, 190); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.62, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      x.save(); x.translate(0, 0); x.fillStyle = gr; x.fillRect(0, 0, 256, 384); x.restore();
+      if (S.faceTex) S.faceTex.dispose();
+      S.faceTex = new T.CanvasTexture(c); S.faceTex.needsUpdate = true;
+      S.key = '';
+      if (S.ok && S.host && S.lastData) build(S.lastData);
+    };
+    im.src = spec.url;
+  }
   function update(data) { if (S.ok && S.host) build(data); }
   function front() { if (S.group) { S.group.rotation.y = 0; S.spinAt = Date.now() + 4000; } }
   function pause() { if (S.raf) { cancelAnimationFrame(S.raf); S.raf = 0; } S.host = null; }
   root.addEventListener('resize', function () { resize(); });
 
-  root.Fit3D = { mount: mount, update: update, pause: pause, front: front, supported: function () { return ensure(); }, heat: HEAT };
+  root.Fit3D = { setFace: setFace, mount: mount, update: update, pause: pause, front: front, supported: function () { return ensure(); }, heat: HEAT };
 })(window);
