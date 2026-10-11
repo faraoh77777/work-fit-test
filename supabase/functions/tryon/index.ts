@@ -11,7 +11,6 @@ const DEV_LIMIT = Number(Deno.env.get("DAILY_LIMIT") ?? "5");
 const GLOBAL_LIMIT = Number(Deno.env.get("GLOBAL_DAILY_LIMIT") ?? "100");
 const ALLOWED = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://faraoh77777.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",");
 const MAX_B64 = 7_000_000; // 상품 사진 base64 길이 상한(약 5MB)
-const POLL_MS = 3000, POLL_MAX_MS = 140_000;
 
 const PROMPTS: Record<string, string> = {
   top: "Image 1 is a full-body photo of a woman standing. Image 2 is a product photo of a top. Edit image 1 so she wears exactly the top shown in image 2 (same color, collar, pattern, sleeve length and fit) instead of her current top.",
@@ -42,7 +41,6 @@ function bytesToB64(u: Uint8Array) {
   for (let i = 0; i < u.length; i += step) s += String.fromCharCode(...u.subarray(i, i + step));
   return btoa(s);
 }
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /* ---------------- TopView ---------------- */
 const tvHeaders = () => ({ "Topview-Uid": TV_UID, Authorization: "Bearer " + TV_KEY });
@@ -77,7 +75,8 @@ function findImageUrl(o: unknown): string {
   }
   return "";
 }
-async function generateTopview(cat: string, garmentBytes: Uint8Array, garmentExt: string, garmentMime: string) {
+/* 접수: 사진 두 장을 올리고 편집 요청만 보낸 뒤 번호(taskId)를 돌려준다. 오래 붙잡지 않는다 */
+async function submitTopview(cat: string, garmentBytes: Uint8Array, garmentExt: string, garmentMime: string) {
   const av = await fetch(AVATAR_URL);
   if (!av.ok) throw new Error("avatar");
   const avBytes = new Uint8Array(await av.arrayBuffer());
@@ -87,22 +86,22 @@ async function generateTopview(cat: string, garmentBytes: Uint8Array, garmentExt
   });
   const taskId = sub.taskId;
   if (!taskId) throw new Error("topview no taskId " + JSON.stringify(sub).slice(0, 200));
-  const t0 = Date.now();
-  while (Date.now() - t0 < POLL_MAX_MS) {
-    await sleep(POLL_MS);
-    const q = await tvGet("/v1/common_task/image_edit/task/query", { taskId });
-    const st = String(q.status ?? "").toLowerCase();
-    if (st === "success") {
-      const url = findImageUrl(q);
-      if (!url) throw new Error("topview no image url " + JSON.stringify(q).slice(0, 300));
-      const img = await fetch(url);
-      if (!img.ok) throw new Error("topview download " + img.status);
-      const mime = img.headers.get("content-type")?.split(";")[0] || "image/png";
-      return { image: bytesToB64(new Uint8Array(await img.arrayBuffer())), mime };
-    }
-    if (st === "failed" || st === "fail") throw new Error("topview task failed " + String(q.errorMsg ?? ""));
+  return String(taskId);
+}
+/* 확인: 끝났으면 이미지를 받아 돌려주고, 아니면 진행 중/실패만 알려 준다 */
+async function statusTopview(taskId: string) {
+  const q = await tvGet("/v1/common_task/image_edit/task/query", { taskId });
+  const st = String(q.status ?? "").toLowerCase();
+  if (st === "success") {
+    const url = findImageUrl(q);
+    if (!url) throw new Error("topview no image url " + JSON.stringify(q).slice(0, 300));
+    const img = await fetch(url);
+    if (!img.ok) throw new Error("topview download " + img.status);
+    const mime = img.headers.get("content-type")?.split(";")[0] || "image/png";
+    return { status: "success", image: bytesToB64(new Uint8Array(await img.arrayBuffer())), mime };
   }
-  throw new Error("topview timeout");
+  if (st === "failed" || st === "fail") return { status: "failed", error: String(q.errorMsg ?? "") };
+  return { status: "processing" };
 }
 
 Deno.serve(async (req) => {
@@ -110,8 +109,14 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json(req, 405, { error: "POST 만 가능합니다." });
   if (!(TV_UID && TV_KEY)) return json(req, 500, { error: "서버에 이미지 생성 키가 설정되지 않았습니다." });
 
-  let body: { device?: string; cat?: string; garment?: string };
+  let body: { action?: string; taskId?: string; device?: string; cat?: string; garment?: string };
   try { body = await req.json(); } catch { return json(req, 400, { error: "요청 형식이 올바르지 않습니다." }); }
+  if (body.action === "status") {
+    const tid = String(body.taskId ?? "");
+    if (!/^[A-Za-z0-9_-]{8,128}$/.test(tid)) return json(req, 400, { error: "작업 번호가 올바르지 않습니다." });
+    try { return json(req, 200, await statusTopview(tid)); }
+    catch (e) { console.error("status failed:", (e as Error).message); return json(req, 502, { error: "진행 상태를 확인하지 못했습니다." }); }
+  }
   const device = String(body.device ?? ""), cat = String(body.cat ?? "");
   let garment = String(body.garment ?? "");
   const m = garment.match(/^data:(image\/(?:jpeg|png|webp));base64,(.*)$/);
@@ -129,11 +134,11 @@ Deno.serve(async (req) => {
 
   try {
     const bytes = b64ToBytes(garment);
-    const out = await generateTopview(cat, bytes, ext, mime);
-    return json(req, 200, out);
+    const taskId = await submitTopview(cat, bytes, ext, mime);
+    return json(req, 200, { taskId });
   } catch (e) {
-    console.error("generate failed:", (e as Error).message);
+    console.error("submit failed:", (e as Error).message);
     await sb.rpc("tryon_refund", { p_device: device });
-    return json(req, 502, { error: "이미지를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요. (횟수는 차감되지 않았습니다)" });
+    return json(req, 502, { error: "요청을 접수하지 못했습니다. 잠시 뒤 다시 시도해 주세요. (횟수는 차감되지 않았습니다)" });
   }
 });

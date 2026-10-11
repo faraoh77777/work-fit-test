@@ -921,7 +921,8 @@
   }
 
   /* ---- 입혀 보기(AI): Supabase Edge Function 이 기본 캐릭터 + 상품 사진으로 입은 모습을 만든다 ---- */
-  var genBusy = null;
+  var genPending = null;                       /* 만드는 중인 옷 id (한 번에 하나만) */
+  var GEN_KEY = function () { return 'fit-gen-pending:' + (user ? user.id : ''); };
   function deviceId() {
     try {
       var d = localStorage.getItem('fit-device');
@@ -930,40 +931,77 @@
     } catch (e) { return 'tmp' + Math.random().toString(16).slice(2) + Date.now().toString(16); }
   }
   function genEnabled() { var c = window.TRYON_CFG; return !!(c && c.url && c.anon); }
+  function genCall(body) {
+    var c = window.TRYON_CFG;
+    return fetch(c.url.replace(/\/$/, '') + '/functions/v1/tryon', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', apikey: c.anon, Authorization: 'Bearer ' + c.anon }, body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
+  }
+  function toast(msg) {
+    var el = document.createElement('div');
+    el.className = 'toast'; el.textContent = msg; document.body.appendChild(el);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 4500);
+  }
   function genButton(it) {
     if (!genEnabled() || !it.photo) return '';
-    if (genBusy === it.id) return '<button class="btn sm" disabled>만드는 중… (최대 1분)</button>';
-    return '<button class="btn sm p" data-act="genTryon" data-id="' + it.id + '"' + (genBusy ? ' disabled' : '') + '>' + (urls.tryon[it.id] ? 'AI로 다시 입히기' : 'AI로 입혀 보기') + '</button>';
+    if (genPending === it.id) return '<button class="btn sm" disabled>만드는 중… 다른 걸 해도 돼요</button>';
+    return '<button class="btn sm p" data-act="genTryon" data-id="' + it.id + '"' + (genPending ? ' disabled' : '') + '>' + (urls.tryon[it.id] ? 'AI로 다시 입히기' : 'AI로 입혀 보기') + '</button>';
+  }
+  function genFinish(id, ok, msg) {
+    genPending = null;
+    try { localStorage.removeItem(GEN_KEY()); } catch (e) {}
+    if (msg) toast(msg);
+    render();
+  }
+  /* 4초마다 결과를 확인한다. 화면을 닫았다 열어도 이어서 확인한다 */
+  function genPoll(id, taskId, t0) {
+    if (!user || genPending !== id) return;
+    if (Date.now() - t0 > 6 * 60 * 1000) { genFinish(id, false, '입은 모습을 만드는 데 너무 오래 걸려 중단했어요. 나중에 다시 시도해 주세요.'); return; }
+    genCall({ action: 'status', taskId: taskId }).then(function (res) {
+      if (!res.ok) throw new Error('retry');
+      var j = res.j;
+      if (j.status === 'success' && j.image) {
+        var bin = atob(j.image), u = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+        var blob = new Blob([u], { type: j.mime || 'image/png' });
+        return blobPut('tryon:' + id, blob).then(function () {
+          if (urls.tryon[id]) URL.revokeObjectURL(urls.tryon[id]);
+          urls.tryon[id] = URL.createObjectURL(blob);
+          var it = item(id);
+          genFinish(id, true, (it ? it.name : '옷') + ' 입은 모습이 완성됐어요!');
+        });
+      }
+      if (j.status === 'failed') { genFinish(id, false, '입은 모습을 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.'); return; }
+      setTimeout(function () { genPoll(id, taskId, t0); }, 4000);
+    }).catch(function () { setTimeout(function () { genPoll(id, taskId, t0); }, 6000); });
   }
   ACT.genTryon = function (el) {
     var it = item(el.dataset.id);
-    if (!it || genBusy || !genEnabled()) return;
+    if (!it || genPending || !genEnabled()) return;
     if (!it.photo) { alert('먼저 이 옷의 상품 사진을 올려 주세요. (수정 → 상품 사진)'); return; }
     var first = false;
     try { first = !localStorage.getItem('fit-gen-ok'); } catch (e) { first = true; }
     if (first && !confirm('상품 사진이 AI 이미지 생성 서버로 전송됩니다. 하루 이용 횟수가 정해져 있어요. 계속할까요?')) return;
     if (urls.tryon[it.id] && !confirm('이미 만든 입은 모습이 있습니다. 다시 만들면 하루 이용 횟수가 한 번 더 쓰입니다. 계속할까요?')) return;
     try { localStorage.setItem('fit-gen-ok', '1'); } catch (e) {}
-    var c = window.TRYON_CFG, id = it.id, ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, 170000);
-    genBusy = id; render();
-    fetch(c.url.replace(/\/$/, '') + '/functions/v1/tryon', {
-      method: 'POST', signal: ctl.signal,
-      headers: { 'Content-Type': 'application/json', apikey: c.anon, Authorization: 'Bearer ' + c.anon },
-      body: JSON.stringify({ device: deviceId(), cat: it.cat, garment: it.photo })
-    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
-      if (!res.ok || !res.j.image) throw new Error((res.j && res.j.error) || '이미지를 만들지 못했습니다.');
-      var bin = atob(res.j.image), u = new Uint8Array(bin.length);
-      for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-      var blob = new Blob([u], { type: res.j.mime || 'image/png' });
-      return blobPut('tryon:' + id, blob).then(function () {
-        if (urls.tryon[id]) URL.revokeObjectURL(urls.tryon[id]);
-        urls.tryon[id] = URL.createObjectURL(blob);
-      });
-    }).catch(function (err) {
-      alert(err && err.name === 'AbortError' ? '시간이 너무 오래 걸려 중단했습니다. 잠시 뒤 다시 시도해 주세요.' : ((err && err.message) || '이미지를 만들지 못했습니다.'));
-    }).then(function () { clearTimeout(timer); genBusy = null; render(); });
+    var id = it.id;
+    genPending = id; render();
+    genCall({ device: deviceId(), cat: it.cat, garment: it.photo }).then(function (res) {
+      if (!res.ok || !res.j.taskId) throw new Error((res.j && res.j.error) || '요청을 접수하지 못했습니다.');
+      var t0 = Date.now();
+      try { localStorage.setItem(GEN_KEY(), JSON.stringify({ id: id, taskId: res.j.taskId, t0: t0 })); } catch (e) {}
+      toast('만드는 중이에요. 다른 옷을 보고 있어도 완성되면 알려 드릴게요.');
+      genPoll(id, res.j.taskId, t0);
+    }).catch(function (err) { genFinish(id, false, (err && err.message) || '요청을 접수하지 못했습니다.'); });
   };
-
+  function genResume() {
+    if (!user || genPending || !genEnabled()) return;
+    try {
+      var p = JSON.parse(localStorage.getItem(GEN_KEY()) || 'null');
+      if (p && p.id && p.taskId && item(p.id) && Date.now() - p.t0 < 6 * 60 * 1000) { genPending = p.id; render(); genPoll(p.id, p.taskId, p.t0); }
+      else if (p) localStorage.removeItem(GEN_KEY());
+    } catch (e) {}
+  }
   function tryonRow(it) {
     var has = !!urls.tryon[it.id];
     return '<div class="tryon">' + genButton(it) + '<label class="btn sm" style="cursor:pointer">' + (has ? '입은 모습 바꾸기' : '입은 모습 올리기') + '<input type="file" accept="image/*" data-file="tryon:' + it.id + '" hidden></label>' +
@@ -1144,5 +1182,5 @@
 
   try { history.replaceState({}, ''); } catch (e) {}
   render();
-  loadMedia().then(render);
+  loadMedia().then(function () { render(); genResume(); });
 })();
