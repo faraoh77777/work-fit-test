@@ -814,6 +814,7 @@
       } else { state.cfg.fabric[parts[1]] = v; }
       openCfg = true; save(); render();
     } else if (t.dataset.file && t.files && t.files[0]) {
+      if (t.dataset.file === 'addCap') { processImages(Array.from(t.files)); t.value = ''; return; }
       handleFile(t.dataset.file, t.files[0]);
     }
   });
@@ -833,21 +834,7 @@
       shrink(file, 1400, 0.9).then(function (b) { return blobPut(kind, b).then(function () { if (urls.tryon[tid]) URL.revokeObjectURL(urls.tryon[tid]); urls.tryon[tid] = URL.createObjectURL(b); render(); }); })
         .catch(function () { alert('입은 모습 이미지를 저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.'); });
     } else if (kind === 'addCap') {
-      if (!window.SizeOcr) return;
-      ocr = { busy: true, msg: '글자를 읽는 중입니다. 처음에는 인식 데이터를 내려받느라 1분 가까이 걸릴 수 있어요.', ok: false }; render();
-      SizeOcr.recognize(file, function (stt, pr) {
-        if (pr != null && ocr.busy) { ocr.msg = '글자를 읽는 중… ' + Math.round(pr * 100) + '%'; var el = root.querySelector('[data-ocrmsg]'); if (el) el.textContent = ocr.msg; }
-      }).then(function (text) {
-        var cat = SizeOcr.detectCat(text), r = SizeOcr.parse(text, cat);
-        if (!r.sizes.length) { ocr = { busy: false, msg: '사이즈표를 읽지 못했습니다. 표 부분만 크게, 또렷하게 다시 캡처하거나 아래에서 직접 입력해 주세요.', ok: false }; render(); return; }
-        var d = blankDraft(cat); d.sizes = r.sizes; if (r.circ) d.measureType = 'circ';
-        var bad = r.bad || [];
-        ocr = { busy: false, msg: CATS[cat] + ' 사이즈표로 읽었습니다. 사이즈 ' + r.sizes.length + '개' + (cat === 'shoe' ? '' : ', 항목 ' + r.found + '개') + '. 아래 표가 캡처와 같은지 확인해 주세요.' +
-          (r.fixed && r.fixed.length ? ' 앞뒤 값의 흐름에 맞춰 자동으로 고친 칸: ' + r.fixed.join(', ') + '.' : '') +
-          (bad.length ? ' 특히 의심되는 칸: ' + bad.join(', ') + '.' : ''), ok: !bad.length && !(r.fixed && r.fixed.length) };
-        state.draft = d; editCat = cat;
-        if (sheet === 'add') swapSheet('edit'); else { ocr = { busy: false, msg: '', ok: false }; state.draft = null; render(); }
-      }).catch(function (err) { ocr = { busy: false, msg: (err && err.message) || '글자를 읽지 못했습니다.', ok: false }; render(); });
+      processImages([file]);
     } else if (kind === 'sizeCap') {
       var d0 = state.draft;
       if (!d0 || !window.SizeOcr) return;
@@ -883,6 +870,59 @@
     }
   }
 
+  /* ---- 사진 여러 장(선택 또는 공유)을 한 번에: 사이즈표는 읽어서 옷으로, 나머지는 상품 사진으로 ---- */
+  var pendingPhoto = null;
+  function processImages(files) {
+    if (!window.SizeOcr || !files.length) return;
+    if (sheet !== 'add') openSheet('add');
+    var N = files.length, i = 0, table = null, photos = [];
+    ocr = { busy: true, msg: '사진 ' + N + '장을 읽는 중입니다. 처음에는 인식 데이터를 내려받느라 1분 가까이 걸릴 수 있어요.', ok: false }; render();
+    function one(f) {
+      return SizeOcr.recognize(f, function (stt, pr) {
+        if (pr != null && ocr.busy) { ocr.msg = '사진 ' + Math.min(i, N) + '/' + N + ' 읽는 중… ' + Math.round(pr * 100) + '%'; var el = root.querySelector('[data-ocrmsg]'); if (el) el.textContent = ocr.msg; }
+      }).then(function (text) {
+        var cat = SizeOcr.detectCat(text), r = SizeOcr.parse(text, cat);
+        if (r.sizes.length && !table) table = { cat: cat, r: r }; else photos.push(f);
+      }).catch(function () { photos.push(f); });
+    }
+    function next() { if (i >= N) return Promise.resolve(); var f = files[i++]; return one(f).then(next); }
+    next().then(function () {
+      var ph = photos.length ? shrink(photos[0], 640, 0.85).then(blobToDataUrl).catch(function () { return null; }) : Promise.resolve(null);
+      return ph.then(function (dataUrl) {
+        if (dataUrl) pendingPhoto = dataUrl;
+        if (!table) {
+          ocr = { busy: false, ok: !!dataUrl, msg: dataUrl ? '상품 사진을 받았어요. 이제 사이즈표 캡처를 올려 주세요.' : '사이즈표를 읽지 못했습니다. 표 부분만 크게, 또렷하게 다시 캡처하거나 아래에서 직접 입력해 주세요.' };
+          render(); return;
+        }
+        var cat = table.cat, r = table.r, d = blankDraft(cat); d.sizes = r.sizes; if (r.circ) d.measureType = 'circ';
+        if (pendingPhoto) { d.photo = pendingPhoto; pendingPhoto = null; }
+        var bad = r.bad || [];
+        ocr = { busy: false, msg: CATS[cat] + ' 사이즈표로 읽었습니다. 사이즈 ' + r.sizes.length + '개' + (cat === 'shoe' ? '' : ', 항목 ' + r.found + '개') + '. 아래 표가 캡처와 같은지 확인해 주세요.' +
+          (r.fixed && r.fixed.length ? ' 앞뒤 값의 흐름에 맞춰 자동으로 고친 칸: ' + r.fixed.join(', ') + '.' : '') +
+          (bad.length ? ' 특히 의심되는 칸: ' + bad.join(', ') + '.' : ''), ok: !bad.length && !(r.fixed && r.fixed.length) };
+        state.draft = d; editCat = cat;
+        if (sheet === 'add') swapSheet('edit'); else { state.draft = null; render(); }
+      });
+    });
+  }
+  /* 공유(Web Share Target)로 들어온 사진: 서비스워커가 캐시에 넣어 두고 ?shared=N 으로 열어 준다 */
+  function checkShared() {
+    var m = /[?&]shared=(\d+)/.exec(location.search);
+    if (!m || !window.caches) return;
+    var n = Math.min(Number(m[1]), 6);
+    try { history.replaceState(history.state || {}, '', location.pathname); } catch (e) {}
+    caches.open('fit-share').then(function (c) {
+      var rs = []; for (var k = 0; k < n; k++) rs.push(c.match('shared/' + k));
+      return Promise.all(rs).then(function (list) {
+        return Promise.all(list.filter(Boolean).map(function (r) { return r.blob(); })).then(function (blobs) {
+          return c.keys().then(function (ks) { return Promise.all(ks.map(function (x) { return c.delete(x); })); }).then(function () { return blobs; });
+        });
+      });
+    }).then(function (blobs) {
+      var files = blobs.map(function (b, k) { return new File([b], 'shared' + k + '.jpg', { type: b.type || 'image/jpeg' }); });
+      if (files.length) processImages(files);
+    }).catch(function () { /* 공유 사진을 못 읽으면 일반 화면 */ });
+  }
   var tx = null;
   function swapSheet(name) {
     try { history.replaceState({ sh: name }, ''); } catch (e) {}
@@ -1030,8 +1070,9 @@
     if (sheet === 'cfg') { openCfg = true; return '<h3>등급 기준 보정</h3>' + cfgPanel() + '<button class="btn" data-act="closeSheet">닫기</button>'; }
     if (sheet === 'add') {
       var busyMsg = ocr.msg ? '<div data-ocrmsg class="' + (ocr.ok ? 'note' : 'warn') + '">' + h(ocr.msg) + '</div>' : '';
-      return '<h3>옷 추가</h3><div class="note">쇼핑몰에서 <b>사이즈표를 캡처</b>해서 올리면 치수를 자동으로 읽고, 상의·하의·신발도 알아서 구분합니다.</div>' +
-        '<label class="bigbtn">' + IC.cam + (ocr.busy ? '읽는 중입니다…' : '사이즈표 캡처 올리기') + '<input type="file" accept="image/*" data-file="addCap" hidden' + (ocr.busy ? ' disabled' : '') + '></label>' + busyMsg +
+      return '<h3>옷 추가</h3><div class="note">쇼핑몰에서 <b>사이즈표를 캡처</b>해서 올리면 치수를 자동으로 읽고, 상의·하의·신발도 알아서 구분합니다. 상품 사진 캡처와 <b>한 번에 같이 선택</b>해도 됩니다.</div>' +
+        '<label class="bigbtn">' + IC.cam + (ocr.busy ? '읽는 중입니다…' : '사이즈표 캡처 올리기') + '<input type="file" accept="image/*" data-file="addCap" multiple hidden' + (ocr.busy ? ' disabled' : '') + '></label>' + busyMsg +
+        '<div class="note">💡 <b>공유로 보내기:</b> 캡처한 뒤 화면의 <b>공유</b> 버튼을 눌러 <b>AI FIT</b>을 고르면 바로 들어옵니다. (홈 화면에 설치한 안드로이드 폰)</div>' +
         '<div class="sec">사이즈표가 없거나 읽지 못했나요?</div><div class="acts"><button class="btn sm" data-act="new" data-cat="top">상의 직접 입력</button><button class="btn sm" data-act="new" data-cat="bottom">하의 직접 입력</button><button class="btn sm" data-act="new" data-cat="shoe">신발 직접 입력</button></div>' +
         '<button class="btn" data-act="closeSheet">닫기</button>';
     }
@@ -1182,5 +1223,6 @@
 
   try { history.replaceState({}, ''); } catch (e) {}
   render();
-  loadMedia().then(function () { render(); genResume(); });
+  loadMedia().then(function () { render(); genResume(); checkShared(); });
+  if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {} }
 })();
