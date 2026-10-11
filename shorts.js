@@ -930,7 +930,7 @@
       return d;
     } catch (e) { return 'tmp' + Math.random().toString(16).slice(2) + Date.now().toString(16); }
   }
-  function genEnabled() { var c = window.TRYON_CFG; return !!(c && c.url && c.anon); }
+  function genEnabled() { var c = window.TRYON_CFG; return !!(c && c.enabled && c.url && c.anon); }
   function genCall(body) {
     var c = window.TRYON_CFG;
     return fetch(c.url.replace(/\/$/, '') + '/functions/v1/tryon', {
