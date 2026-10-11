@@ -1268,7 +1268,22 @@
   ACT.cancelEdit = function () { state.draft = null; ACT.closeSheet(); };
   ACT.logout = function () { onbShown = false; sheet = null; try { history.replaceState({}, ''); } catch (e) {} _logout(); };
 
+  /* 이미지 화면을 누르면 전체 화면으로 보기(다시 누르거나 ✕ 로 닫기) */
+  function closeFull() { var o = document.getElementById('fsview'); if (o) o.remove(); document.removeEventListener('keydown', fullKey); }
+  function fullKey(e) { if (e.key === 'Escape') closeFull(); }
+  function openFull(m) {
+    closeFull();
+    var c = m.cloneNode(true); c.removeAttribute('id'); c.style.bottom = '0';
+    Array.prototype.forEach.call(c.querySelectorAll('.rbadge,.aichip,.d3legend,.d3front,.d3hint'), function (n) { n.remove(); });
+    var o = document.createElement('div'); o.id = 'fsview'; o.appendChild(c);
+    o.insertAdjacentHTML('beforeend', '<button type="button" class="fsx" aria-label="닫기">✕</button>');
+    o.addEventListener('click', closeFull);
+    document.body.appendChild(o);
+    document.addEventListener('keydown', fullKey);
+  }
   root.addEventListener('click', function (e) {
+    var m = e.target.closest('#rmedia');
+    if (m && !e.target.closest('[data-act],button,a') && !m.classList.contains('d3')) { openFull(m); return; }
     var el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;
     var fn = ACT[el.dataset.act];
