@@ -556,7 +556,7 @@
     return '<path d="' + d + '" fill="' + col + '" fill-opacity="0.94" stroke="rgba(0,0,0,.35)" stroke-width="3" stroke-linejoin="round"/>';
   }
   function garmentLayer(ev) {
-    GS = isMale() ? 7.96 : 8.36;
+    GS = isMale() ? 7.78 : 8.36;
     var ky = bodyScale().ky, out = '';
     function Y(y) { return GH - (GH - y) * ky; }
     ['bottom', 'top'].forEach(function (cat) {
