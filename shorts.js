@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  var KEY = 'fit-test-v1';                 /* 프로필별 데이터는 KEY + ':' + 사용자 id. KEY 단독은 로그인 도입 전 데이터 */
-  var USERS_KEY = 'fit-users-v1', CUR_KEY = 'fit-current-user';
+  var KEY = 'fitv2-test-v1';                 /* 프로필별 데이터는 KEY + ':' + 사용자 id. KEY 단독은 로그인 도입 전 데이터 */
+  var USERS_KEY = 'fitv2-users-v1', CUR_KEY = 'fitv2-current-user';
   var STEPS = ['profile', 'top', 'bottom', 'shoe', 'confirm', 'result'];
   var STEP_NAMES = { profile: '내 정보', top: '상의', bottom: '하의', shoe: '신발', confirm: '확인', result: '결과' };
   var CATS = { top: '상의', bottom: '하의', shoe: '신발' };
@@ -20,23 +20,6 @@
     ['thigh', '허벅지둘레', 'cm'], ['arm', '팔길이(어깨점~손목)', 'cm'], ['inseam', '다리 안쪽 길이(인심)', 'cm'],
     ['rise', '밑위(앞)', 'cm'], ['foot', '발길이', 'mm']
   ];
-  /* 기본 모델 = 앱에 연결하는 30대 여성 캐릭터. 제작 설정에 숫자가 없어 '중간 키·슬림'을 표준값으로 가정한 것이므로 설정에서 바꿀 수 있다 */
-  var MODEL = { gender: 'female', height: '162', weight: '50' }, MALE_MODEL = { gender: 'male', height: '175', weight: '68' };
-  function sampleCloset() {
-    function sz(label, o) { var r = { label: label }; Object.keys(o).forEach(function (k) { r[k] = String(o[k]); }); return r; }
-    return [
-      { id: 'p1', cat: 'top', name: '예시 카라 티셔츠', measureType: 'circ', fabric: 'normal', photo: '', price: '', url: '', isRef: false, refSize: '', sizes: [
-        sz('M', { length: 59, shoulder: 35.5, chest: 88, sleeve: 54 }), sz('L', { length: 60, shoulder: 37, chest: 92, sleeve: 55 }),
-        sz('XL', { length: 61, shoulder: 39.5, chest: 96, sleeve: 56 }), sz('2XL', { length: 62, shoulder: 41, chest: 100, sleeve: 57 }),
-        sz('3XL', { length: 63, shoulder: 43.5, chest: 104, sleeve: 58 }), sz('4XL', { length: 64, shoulder: 45, chest: 108, sleeve: 59 })] },
-      { id: 'p2', cat: 'top', name: '예시 스판 티셔츠', measureType: 'circ', fabric: 'stretch', photo: '', price: '', url: '', isRef: false, refSize: '', sizes: [
-        sz('S', { length: 58, shoulder: 36, chest: 82, sleeve: 19 }), sz('M', { length: 60, shoulder: 38, chest: 88, sleeve: 20 }), sz('L', { length: 62, shoulder: 40, chest: 94, sleeve: 21 })] },
-      { id: 'p3', cat: 'bottom', name: '예시 슬랙스', measureType: 'flat', fabric: 'normal', photo: '', price: '', url: '', isRef: false, refSize: '', sizes: [
-        sz('S', { waist: 34, hip: 45, thigh: 26, rise: 25, inseam: 70 }), sz('M', { waist: 36, hip: 47, thigh: 27, rise: 26, inseam: 72 }), sz('L', { waist: 38, hip: 49, thigh: 28, rise: 27, inseam: 74 })] },
-      { id: 'p4', cat: 'shoe', name: '예시 스니커즈', measureType: '', fabric: 'normal', photo: '', price: '', url: '', isRef: false, refSize: '', sizes: [
-        { label: '230' }, { label: '235' }, { label: '240' }, { label: '245' }] }
-    ];
-  }
   var BASE_CFG = JSON.parse(JSON.stringify(window.FIT_CONFIG));
   var E = window.FitEngine;
 
@@ -46,14 +29,13 @@
     '<path d="M44 18Q60 30 76 18" fill="none" stroke="var(--ink)" stroke-width="2"/>' +
     '<g stroke="var(--accent)" stroke-width="1.6" fill="none" stroke-linecap="round"><path d="M30 76H90" stroke-dasharray="4 3"/><path d="M30 70v12M90 70v12"/></g>' +
     '<g transform="translate(78 92) rotate(8)"><rect width="30" height="20" rx="4" fill="var(--accent)"/><text x="15" y="14.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="sans-serif">M</text></g></svg></div>';
-  var HERO = '<div class="herovid"><video src="assets/hero_v4_5cut.mp4" autoplay muted loop playsinline preload="auto" aria-label="FIT 홍보 영상" onerror="this.parentNode.classList.add(&#39;novid&#39;)"></video>' +
+  var HERO = '<div class="herovid"><video src="../assets/hero_v4_5cut.mp4" autoplay muted loop playsinline preload="auto" aria-label="FIT 홍보 영상" onerror="this.parentNode.classList.add(&#39;novid&#39;)"></video>' +
     '<div class="hv-cap">FIT 하면 이렇게 보여요</div><div class="hv-ai">AI 생성 이미지</div>' + HERO_BANNER + '</div>';
 
   /* ---------- 상태 ---------- */
-  function defaultSel() { return { top: { id: 'p1', size: null }, bottom: { id: 'p3', size: null }, shoe: { id: 'p4', size: null } }; }
   function blankState() {
     return { step: 'profile', profile: { gender: 'male', height: '', weight: '', pref: 'fit', m: {} },
-      closet: [], sel: {}, draft: null, motion: 0, cfg: null, feel: {}, seq: 1, aiGen: {}, view: 'char', viewV: 2 };
+      closet: [], sel: {}, draft: null, motion: 0, cfg: null, feel: {}, seq: 1 };
   }
   /* ---------- 프로필(이 기기 안 로그인) ---------- */
   function readUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch (e) { return []; } }
@@ -69,31 +51,16 @@
     return s;
   }
   var user = (function () { try { return userById(localStorage.getItem(CUR_KEY)); } catch (e) { return null; } })();
-  /* 처음 여는 사람은 닉네임·PIN 없이 바로 시작한다. 예전 단일 사용자 데이터가 있으면 그대로 이어받는다 */
-  if (!user && !readUsers().length) {
-    var gu = { id: 'u' + Date.now().toString(36), nick: '나', salt: '', pin: '', created: Date.now() };
-    writeUsers([gu]); user = gu;
-    try { localStorage.setItem(CUR_KEY, gu.id); } catch (e) {}
-    var guOld = null;
-    try { var guRaw = localStorage.getItem(KEY); if (guRaw) guOld = Object.assign(blankState(), JSON.parse(guRaw)); } catch (e) { guOld = null; }
-    var guState = guOld || blankState();
-    if (!guOld) { guState.profile.gender = MODEL.gender; guState.closet = sampleCloset(); guState.seq = 10; guState.sel = defaultSel(); }
-    try { localStorage.setItem(KEY + ':' + gu.id, JSON.stringify(guState)); } catch (e) {}
-  }
 
   var state = user ? load() : blankState();
-  var urls = { avatar: null, face: null, videos: [null, null, null], tryon: {} };
+  var urls = { avatar: null, videos: [null, null, null] };
   var openCfg = false;
   var root = document.getElementById('app');
 
   function load() {
     try {
       var raw = localStorage.getItem(KEY + ':' + user.id);
-      if (raw) {
-        var s = JSON.parse(raw), st = Object.assign(blankState(), s);
-        if (st.viewV !== 2) { st.view = 'char'; st.viewV = 2; }      /* 기본 화면은 원본 캐릭터(3D 핏은 선택) */
-        return st;
-      }
+      if (raw) { var s = JSON.parse(raw); return Object.assign(blankState(), s); }
     } catch (e) { /* 저장소를 못 쓰면 메모리로만 동작 */ }
     return blankState();
   }
@@ -104,7 +71,7 @@
   function db() {
     if (!dbp) dbp = new Promise(function (res, rej) {
       try {
-        var rq = indexedDB.open('fit-test', 1);
+        var rq = indexedDB.open('fitv2-test', 1);
         rq.onupgradeneeded = function () { rq.result.createObjectStore('blobs'); };
         rq.onsuccess = function () { res(rq.result); };
         rq.onerror = function () { rej(rq.error); };
@@ -130,29 +97,21 @@
   function blobGet(k) { return rawGet(bk(k)); }
   function blobPut(k, v) { return rawPut(bk(k), v); }
   function blobDel(k) { return rawDel(bk(k)); }
-  var MEDIA_KEYS = ['avatar', 'video0', 'video1', 'video2', 'face'];
-  var DEFAULT_AVATAR = 'assets/avatar_default.jpg', MALE_AVATAR = 'assets/avatar_male.jpg';
-  function isMale() { return !!(state && state.profile && state.profile.gender === 'male'); }
-  var APP_VERSION = '1.0.0';
+  var MEDIA_KEYS = ['avatar', 'video0', 'video1', 'video2'];
 
   function clearUrls() {
     if (urls.avatar) URL.revokeObjectURL(urls.avatar);
     urls.videos.forEach(function (u) { if (u) URL.revokeObjectURL(u); });
-    Object.keys(urls.tryon).forEach(function (k) { if (urls.tryon[k]) URL.revokeObjectURL(urls.tryon[k]); });
-    if (urls.face) URL.revokeObjectURL(urls.face);
-    urls = { avatar: null, face: null, videos: [null, null, null], tryon: {} };
+    urls = { avatar: null, videos: [null, null, null] };
   }
   function loadMedia() {
     if (!user) return Promise.resolve();
     var uid = user.id;
-    var ids = state.closet.map(function (x) { return x.id; });
-    return Promise.all(MEDIA_KEYS.map(blobGet).concat(ids.map(function (id) { return blobGet('tryon:' + id); }))).then(function (r) {
+    return Promise.all(MEDIA_KEYS.map(blobGet)).then(function (r) {
       if (!user || user.id !== uid) return;
       clearUrls();
       if (r[0]) urls.avatar = URL.createObjectURL(r[0]);
-      if (r[4]) urls.face = URL.createObjectURL(r[4]);
       for (var i = 0; i < 3; i++) if (r[i + 1]) urls.videos[i] = URL.createObjectURL(r[i + 1]);
-      ids.forEach(function (id, j) { var b = r[5 + j]; if (b) urls.tryon[id] = URL.createObjectURL(b); });
     });
   }
 
@@ -166,21 +125,6 @@
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
         URL.revokeObjectURL(u);
         c.toBlob(function (b) { b ? res(b) : rej(new Error('변환 실패')); }, 'image/jpeg', quality);
-      };
-      img.onerror = function () { URL.revokeObjectURL(u); rej(new Error('이미지를 읽을 수 없습니다')); };
-      img.src = u;
-    });
-  }
-  /* 얼굴 사진: 가운데 정사각형으로 잘라 작게 줄인다(셀카는 얼굴이 위쪽에 있어 세로로 살짝 위를 기준으로 자름) */
-  function faceCrop(file, size) {
-    return new Promise(function (res, rej) {
-      var u = URL.createObjectURL(file), img = new Image();
-      img.onload = function () {
-        URL.revokeObjectURL(u);
-        var m = Math.min(img.width, img.height), c = document.createElement('canvas');
-        c.width = c.height = size;
-        c.getContext('2d').drawImage(img, (img.width - m) / 2, (img.height - m) * 0.3, m, m, 0, 0, size, size);
-        c.toBlob(function (b) { b ? res(b) : rej(new Error('변환 실패')); }, 'image/jpeg', 0.9);
       };
       img.onerror = function () { URL.revokeObjectURL(u); rej(new Error('이미지를 읽을 수 없습니다')); };
       img.src = u;
@@ -218,7 +162,7 @@
   }
 
   /* ---------- 화면: 로그인 ---------- */
-  function blankLogin() { return { mode: 'list', id: null, nick: '', pin: '', pin2: '', gender: MODEL.gender, height: MODEL.height, weight: MODEL.weight, err: '', avatar: null, avatarUrl: null, fails: 0, until: 0 }; }
+  function blankLogin() { return { mode: 'list', id: null, nick: '', pin: '', pin2: '', gender: 'male', height: '', weight: '', err: '', avatar: null, avatarUrl: null, fails: 0, until: 0 }; }
   var lg = blankLogin();
   /* 틀린 PIN 횟수·잠금 시각은 화면을 바꿔도 유지한다 */
   function resetLogin(mode, id) {
@@ -319,7 +263,6 @@
       if (info.height !== '') state.profile.height = info.height;
       if (info.weight !== '') state.profile.weight = info.weight;
       state.step = 'profile';
-      if (!state.closet.length) { state.closet = sampleCloset(); state.seq = 10; }
       save();
       return av ? blobPut('avatar', av).catch(function () { alert('캐릭터 이미지를 저장하지 못했습니다. 내 정보에서 다시 연결해 주세요.'); }) : null;
     }).then(enterApp);
@@ -375,35 +318,10 @@
       '<div class="sec">선호 핏</div>' + seg('profile.pref', p.pref, PREFS);
   }
   function mediaCard() {
-    return '<div class="card"><div class="h"><span>다른 캐릭터 연결</span></div>' +
-      '<div class="note">기본 캐릭터 대신 쓸 이미지·동작 영상을 연결합니다. 직접 연결하면 얼굴 바꾸기는 적용되지 않습니다. 이 기기 안에만 저장됩니다.</div>' +
+    return '<div class="card"><div class="h"><span>내 아바타</span></div>' +
+      '<div class="note">이미 만든 아바타 이미지와 동작 영상을 연결합니다. 이 기기 안에만 저장됩니다.</div>' +
       mediaRow('avatar', '아바타 이미지', 'image/*', !!urls.avatar) +
       MOTIONS.map(function (m, i) { return mediaRow('video' + i, '영상 · ' + m, 'video/*', !!urls.videos[i]); }).join('') + '</div>';
-  }
-  function basicForm() {
-    var p = state.profile;
-    return seg('profile.gender', p.gender, [['male', '남성'], ['female', '여성']]) +
-      '<div class="row2"><label class="f">키<div class="inwrap"><input type="number" inputmode="decimal" id="in-height" data-path="profile.height" data-hint="1" value="' + h(p.height) + '"><small>cm</small></div></label>' +
-      '<label class="f">몸무게<div class="inwrap"><input type="number" inputmode="decimal" id="in-weight" data-path="profile.weight" data-hint="1" value="' + h(p.weight) + '"><small>kg</small></div></label></div>';
-  }
-  function faceRow() {
-    var has = !!urls.face;
-    return '<div class="line" style="align-items:center"><span>내 얼굴 사진 ' + (has ? '<span class="tag real">적용됨</span>' : '<span class="tag">기본 얼굴</span>') + '</span>' +
-      '<span class="acts"><label class="btn sm" style="cursor:pointer">' + (has ? '바꾸기' : '사진 선택') + '<input type="file" accept="image/*" data-file="face" hidden></label>' +
-      (has ? '<button class="btn sm danger" data-act="clearFile" data-kind="face">되돌리기</button>' : '') + '</span></div>' +
-      '<div class="note">얼굴이 크게 나온 정면 사진이 잘 맞습니다. 사진은 이 기기 안에만 저장되고 밖으로 나가지 않습니다.</div>';
-  }
-  function advForm(auto) {
-    var p = state.profile, body = E.bodyOf(p, cfgNow());
-    var rows = MFIELDS.map(function (f) {
-      var v = p.m[f[0]] == null ? '' : p.m[f[0]], est = body.vals[f[0]];
-      return '<div class="mrow"><span>' + f[1] + '</span>' +
-        '<div class="inwrap"><input type="number" inputmode="decimal" step="0.1" id="m-' + f[0] + '" data-path="profile.m.' + f[0] + '" data-hint="' + f[0] + '" value="' + h(v) + '" placeholder="' + (est != null ? est : '') + '" aria-label="' + f[1] + '"><small>' + f[2] + '</small></div>' +
-        '<span id="tag-' + f[0] + '">' + (v !== '' ? srcTag('real') : (est != null ? srcTag('est') : '')) + '</span></div>';
-    }).join('');
-    return '<div class="note">비워 두면 키·몸무게로 자동 계산합니다(회색 숫자). 줄자로 잰 값을 넣을수록 체형과 핏 판정이 정확해집니다.</div><div>' + rows + '</div>' +
-      '<button class="btn sm" data-act="autoFill">빈 칸을 자동 계산값으로 채우기</button>' +
-      '<div class="sec">선호 핏</div>' + seg('profile.pref', p.pref, PREFS);
   }
   function mediaRow(kind, label, accept, has) {
     return '<div class="line" style="align-items:center"><span>' + label + ' ' + (has ? '<span class="tag real">연결됨</span>' : '<span class="tag">없음</span>') + '</span>' +
@@ -416,18 +334,6 @@
     bottom: '<path d="M32 14 H68 L72 86 H55 L50 40 L45 86 H28Z"/>',
     shoe: '<path d="M14 58 Q14 44 28 44 L40 44 Q46 56 62 58 L86 62 Q90 72 84 76 L16 76 Q12 70 14 58Z"/>'
   };
-  /* 사이즈표 캡처 → 실측표 자동 입력, 이어서 상품 사진 캡처 */
-  var ocr = { busy: false, msg: '', ok: false };
-  function captureCards(d) {
-    var st = ocr.busy ? '<span class="tag">읽는 중</span>' : (ocr.msg ? '<span class="tag' + (ocr.ok ? ' real' : '') + '">' + (ocr.ok ? '읽음' : '확인 필요') + '</span>' : '');
-    return '<div class="card"><div class="h"><span>① 사이즈표 캡처</span>' + st + '</div>' +
-      '<div class="note">쇼핑몰 상품 페이지의 사이즈표(실측표)를 캡처해서 올리면 아래 실측표를 자동으로 채웁니다. 인식이 틀릴 수 있으니 꼭 확인해 주세요.</div>' +
-      '<label class="btn sm" style="cursor:pointer;align-self:flex-start">' + (ocr.busy ? '읽는 중…' : '사이즈표 사진 선택') + '<input type="file" accept="image/*" data-file="sizeCap" hidden' + (ocr.busy ? ' disabled' : '') + '></label>' +
-      (ocr.msg ? '<div data-ocrmsg class="' + (ocr.ok ? 'note' : 'warn') + '">' + h(ocr.msg) + '</div>' : '') + '</div>' +
-      '<div class="card"><div class="h"><span>② 상품 사진 캡처</span>' + (d.photo ? '<span class="tag real">등록됨</span>' : '') + '</div>' +
-      '<div class="photo">' + (d.photo ? '<img alt="상품 사진" src="' + d.photo + '">' : '상품 사진 (선택, 참고용)') + '</div>' +
-      '<label class="btn sm" style="cursor:pointer;align-self:flex-start">상품 사진 선택<input type="file" accept="image/*" data-file="draftPhoto" hidden></label></div>';
-  }
   function viewEditor(cat) {
     var d = state.draft;
     var fields = FIELDS[cat];
@@ -440,10 +346,12 @@
       }).join('') + '</tr>';
     }).join('');
     var refSel = d.sizes.map(function (s) { return '<option value="' + h(s.label) + '"' + (d.refSize === s.label ? ' selected' : '') + '>' + h(s.label) + '</option>'; }).join('');
-    return '<div class="body"><div class="sec">' + CATS[cat] + ' ' + (d.id ? '수정' : '새 상품') + '</div>' + captureCards(d) +
+    return '<div class="body"><div class="sec">' + CATS[cat] + ' ' + (d.id ? '수정' : '새 상품') + '</div>' +
       '<label class="f">상품 이름<input type="text" data-path="draft.name" value="' + h(d.name) + '" placeholder="예) 스판 라운드 티셔츠"></label>' +
       '<label class="f">가격 (원, 선택)<input type="number" inputmode="numeric" min="0" data-path="draft.price" value="' + h(d.price == null ? '' : d.price) + '" placeholder="예) 39000"></label>' +
       '<label class="f">상품 링크 (선택)<input type="url" data-path="draft.url" value="' + h(d.url || '') + '" placeholder="https://..."></label>' +
+      '<div class="photo">' + (d.photo ? '<img alt="상품 사진" src="' + d.photo + '">' : '상품 사진 (선택, 참고용)') + '</div>' +
+      '<label class="btn sm" style="cursor:pointer;align-self:flex-start">사진 선택<input type="file" accept="image/*" data-file="draftPhoto" hidden></label>' +
       (cat === 'shoe' ? '' : '<div class="sec">실측표 방식</div>' + seg('draft.measureType', d.measureType, [['flat', '단면(평평하게 잰 값)'], ['circ', '둘레']])) +
       (cat === 'shoe' ? '' : '<div class="sec">소재</div><div class="chips">' + Object.keys(BASE_CFG.fabric).map(function (k) {
         return '<button class="chip' + (d.fabric === k ? ' on' : '') + '" data-act="set" data-path="draft.fabric" data-val="' + k + '">' + BASE_CFG.fabric[k].label + '</button>';
@@ -478,150 +386,23 @@
     return '<div class="scale" role="img" aria-label="' + h(p.label) + ' 여유 ' + sgn(p.ease) + p.unit + ', ' + h(p.grade) + '">' + w.map(function (x) { return '<i style="flex:' + x + '"></i>'; }).join('') + '<u style="left:' + pos + '%"></u></div>';
   }
 
-  /* 고른 옷(상의→하의→신발 순) 중 '입은 모습' 이미지가 연결된 첫 번째 */
-  function wornImage() {
-    var c = ['top', 'bottom', 'shoe'];
-    for (var i = 0; i < c.length; i++) {
-      var s = state.sel[c[i]], it = s && item(s.id);
-      if (it && urls.tryon[it.id]) return { id: it.id, cat: c[i], name: it.name, url: urls.tryon[it.id] };
+  function reelMedia() {
+    var m = state.motion, inner, badge = '';
+    if (urls.videos[m]) inner = '<video src="' + urls.videos[m] + '" loop playsinline autoplay muted></video>';
+    else if (urls.avatar) { inner = '<img alt="내 아바타" src="' + urls.avatar + '">'; badge = '이 동작의 영상이 없어 이미지를 표시합니다'; }
+    else {
+      inner = '<svg viewBox="0 0 120 260" role="img" aria-label="아바타 자리 표시"><circle cx="60" cy="26" r="17" fill="var(--skin)"/><rect x="54" y="40" width="12" height="10" fill="var(--skin)"/>' +
+        '<path d="M30 56 Q60 46 90 56 L96 120 L82 124 L80 100 L80 150 L40 150 L40 100 L38 124 L24 120 Z" fill="rgba(20,20,20,.08)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>' +
+        '<path d="M41 150 L79 150 L82 226 L66 226 L60 170 L54 226 L38 226 Z" fill="rgba(20,20,20,.14)" stroke="var(--ink)" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+      badge = '설정에서 아바타를 연결하면 여기에 표시됩니다';
     }
-    return null;
-  }
-  /* 기본 모델(여성 162cm/50kg)과 비교한 체형 비율. 실측 치수가 있으면 그것을 쓰고 없으면 키·몸무게 추정치를 쓴다 */
-  function bodyScale() {
-    try {
-      var p = state.profile, hh = E.num(p.height);
-      if (!hh) return { kx: 1, ky: 1 };
-      var bm = isMale() ? MALE_MODEL : MODEL;
-      var base = E.bodyOf({ gender: bm.gender, height: bm.height, weight: bm.weight, pref: 'fit', m: {} }, cfgNow()).vals;
-      var cur = E.bodyOf(p, cfgNow()).vals, sum = 0, n = 0;
-      ['chest', 'waist', 'hip'].forEach(function (k) {
-        var a = E.num(cur[k]), b = E.num(base[k]);
-        if (a && b) { sum += a / b; n++; }
-      });
-      var ratio = n ? sum / n : 1;
-      var kx = Math.max(0.84, Math.min(1.3, 1 + (ratio - 1) * 0.9));
-      var ky = Math.max(0.93, Math.min(1.07, hh / Number(bm.height)));
-      return { kx: kx, ky: ky };
-    } catch (e) { return { kx: 1, ky: 1 }; }
-  }
-  /* ---- 실측 치수로 그린 옷: 캐릭터 이미지(864x1536)의 몸 위에 SVG 로 얹는다. 1cm = 8.36px(162cm = 머리~발끝 약 1355px) ---- */
-  var GS = 8.36, GCX = 436, GH = 1536, gColors = {};
-  var PALETTE = ['#6b8cae', '#b5838d', '#8d9a6b', '#c9a86a', '#7d6b9e'];
-  var DEFAULT_COLORS = { p1: '#4f8a57', p2: '#c9ccd3', p3: '#2c3342' };
-  function garmentColor(it) {
-    if (gColors[it.id]) return gColors[it.id];
-    var def = DEFAULT_COLORS[it.id] || PALETTE[String(it.id).split('').reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % PALETTE.length];
-    if (it.photo && gColors[it.id] === undefined) {
-      gColors[it.id] = null;
-      var im = new Image();
-      im.onload = function () {
-        try {
-          var c = document.createElement('canvas'); c.width = c.height = 24;
-          var x = c.getContext('2d'); x.drawImage(im, im.width * 0.25, im.height * 0.25, im.width * 0.5, im.height * 0.5, 0, 0, 24, 24);
-          var d = x.getImageData(0, 0, 24, 24).data, r = 0, g = 0, bl = 0, n = 0;
-          for (var i = 0; i < d.length; i += 4) { if (d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235) continue; r += d[i]; g += d[i + 1]; bl += d[i + 2]; n++; }
-          if (n > 20) { gColors[it.id] = 'rgb(' + Math.round(r / n) + ',' + Math.round(g / n) + ',' + Math.round(bl / n) + ')'; updateFig(); }
-        } catch (e) { /* 색을 못 읽으면 기본 색 */ }
-      };
-      im.src = it.photo;
-    }
-    return gColors[it.id] || def;
-  }
-  function circOf(it, v) { var n = E.num(v); return n ? (it.measureType === 'circ' ? n : n * 2) : 0; }
-  function topShape(it, row, Y, col) {
-    var chest = circOf(it, row.chest); if (!chest) return '';
-    var ysh = Y(345), L = E.num(row.length) || 62, sl = (E.num(row.sleeve) || 20) * GS;
-    var hs = (E.num(row.shoulder) || 38) * GS / 2, hc = Math.max(chest / Math.PI * GS / 2, hs * 0.72);
-    var hem = ysh + L * GS, ya = ysh + 100, sw = 64 + Math.max(0, (hc - 120) * 0.35);
-    function side(m) {
-      var P = [GCX + m * hs, ysh + 14], Eo = [P[0] + m * (6 + 0.035 * sl), ysh + 14 + sl], Ei = [Eo[0] - m * sw, Eo[1]], A = [GCX + m * hc, ya], Hm = [GCX + m * hc, hem];
-      return { P: P, Eo: Eo, Ei: Ei, A: A, H: Hm };
-    }
-    var l = side(-1), r = side(1);
-    function pt(a) { return a[0].toFixed(1) + ' ' + a[1].toFixed(1); }
-    var d = 'M' + pt([GCX - 46, ysh - 6]) + ' Q' + pt([GCX, ysh + 58]) + ' ' + pt([GCX + 46, ysh - 6]) +
-      ' L' + pt(r.P) + ' L' + pt(r.Eo) + ' L' + pt(r.Ei) + ' L' + pt(r.A) + ' L' + pt(r.H) + ' L' + pt(l.H) + ' L' + pt(l.A) + ' L' + pt(l.Ei) + ' L' + pt(l.Eo) + ' L' + pt(l.P) + ' Z';
-    return '<path d="' + d + '" fill="' + col + '" fill-opacity="0.94" stroke="rgba(0,0,0,.35)" stroke-width="3" stroke-linejoin="round"/>';
-  }
-  function bottomShape(it, row, Y, col) {
-    var waist = circOf(it, row.waist), hip = circOf(it, row.hip); if (!waist && !hip) return '';
-    waist = waist || hip * 0.85; hip = Math.max(hip || waist * 1.15, waist);
-    var thigh = circOf(it, row.thigh) || hip * 0.6;
-    var yw = Y(isMale() ? 700 : 655), rise = E.num(row.rise) || 26, ycr = yw + rise * GS, yh = ycr + (E.num(row.inseam) || 72) * GS;
-    var hw = waist / Math.PI * GS / 2, hh = hip / Math.PI * GS / 2, oc = Math.max(hh, thigh / Math.PI * GS), ho = oc * 0.8;
-    function pt(x, y) { return x.toFixed(1) + ' ' + y.toFixed(1); }
-    var d = 'M' + pt(GCX - hw, yw) + ' L' + pt(GCX - hh, yw + 110) + ' L' + pt(GCX - oc, ycr) + ' L' + pt(GCX - ho, yh) + ' L' + pt(GCX - 14, yh) + ' L' + pt(GCX, ycr - 10) +
-      ' L' + pt(GCX + 14, yh) + ' L' + pt(GCX + ho, yh) + ' L' + pt(GCX + oc, ycr) + ' L' + pt(GCX + hh, yw + 110) + ' L' + pt(GCX + hw, yw) + ' Z';
-    return '<path d="' + d + '" fill="' + col + '" fill-opacity="0.94" stroke="rgba(0,0,0,.35)" stroke-width="3" stroke-linejoin="round"/>';
-  }
-  function garmentLayer(ev) {
-    GS = isMale() ? 7.78 : 8.36;
-    var ky = bodyScale().ky, out = '';
-    function Y(y) { return GH - (GH - y) * ky; }
-    ['bottom', 'top'].forEach(function (cat) {
-      var r = ev && ev.results ? ev.results.filter(function (x) { return x.cat === cat; })[0] : null;
-      if (!r || !r.garment) return;
-      var row = r.garment.sizes.filter(function (z) { return z.label === r.chosen; })[0];
-      if (!row) return;
-      out += cat === 'top' ? topShape(r.garment, row, Y, garmentColor(r.garment)) : bottomShape(r.garment, row, Y, garmentColor(r.garment));
-    });
-    return out;
-  }
-  /* ---- 3D 핏: 몸 치수(입력값, 없으면 키·몸무게 추정값) + 고른 옷의 선택 사이즈 치수 ---- */
-  var lastEv = null;
-  function collect3d(ev) {
-    var bv = E.bodyOf(state.profile, cfgNow()).vals;
-    var v = { height: bv.height, chest: bv.chest, shoulder: bv.shoulder, waist: bv.waist, hip: bv.hip, thigh: bv.thigh, arm: bv.arm, inseam: bv.inseam, rise: bv.rise, foot: bv.foot };
-    var gars = [];
-    ((ev && ev.results) || []).forEach(function (r) {
-      if (r.cat === 'shoe' || !r.garment) return;
-      var row = r.garment.sizes.filter(function (z) { return z.label === r.chosen; })[0];
-      if (!row) return;
-      var p = r.current && r.current.primary, heat = p ? p.gradeKey : 'fit';
-      if (r.cat === 'top') {
-        var c = circOf(r.garment, row.chest); if (!c) return;
-        gars.push({ cat: 'top', heat: heat, chest: c, shoulder: E.num(row.shoulder) || 0, length: E.num(row.length) || 0, sleeve: E.num(row.sleeve) || 0 });
-      } else {
-        var w = circOf(r.garment, row.waist), hp = circOf(r.garment, row.hip), th = circOf(r.garment, row.thigh);
-        if (!w && !hp) return;
-        gars.push({ cat: 'bottom', heat: heat, waist: w, hip: hp, thigh: th, rise: E.num(row.rise) || 0, inseam: E.num(row.inseam) || 0 });
-      }
-    });
-    return { body: v, garments: gars };
-  }
-  function d3Media() {
-    if (!(window.Fit3D && Fit3D.supported())) return '<div class="rmedia figbg"><div class="d3off">이 기기에서는 3D를 표시할 수 없어요.<br>위에서 "캐릭터"를 눌러 주세요.</div></div>';
-    var H = Fit3D.heat, names = [['tightBad', '많이 껴요'], ['tight', '약간 껴요'], ['fit', '딱 맞아요'], ['loose', '넉넉해요'], ['over', '너무 커요']];
-    var leg = names.map(function (n) { return '<span><i style="background:#' + ('000000' + H[n[0]].toString(16)).slice(-6) + '"></i>' + n[1] + '</span>'; }).join('');
-    return '<div class="rmedia figbg d3" id="rmedia"><div id="d3host"></div><div class="d3legend">' + leg + '</div><button class="d3front" data-act="d3front">정면</button><div class="d3hint">좌우로 밀면 돌아가요</div></div>';
-  }
-  function updateFig() {
-    var f = root.querySelector('.fbody');
-    if (!f) return;
-    var sc = bodyScale(); f.style.transform = 'scale(' + sc.kx.toFixed(3) + ',' + sc.ky.toFixed(3) + ')';
-    var g = root.querySelector('.gsvg'); if (g) g.innerHTML = garmentLayer(safeEval());
-  }
-  function figure(ev) {
-    var sc = bodyScale(), custom = !!urls.avatar, male = isMale(), src = custom ? urls.avatar : (male ? MALE_AVATAR : DEFAULT_AVATAR);
-    var face = (!custom && urls.face) ? '<span class="face"><img alt="" src="' + urls.face + '"></span>' : '';
-    return '<div class="fig' + (male && !custom ? ' male' : '') + '"><div class="fbody" style="transform:scale(' + sc.kx.toFixed(3) + ',' + sc.ky.toFixed(3) + ')"><img alt="내 캐릭터" src="' + src + '">' + face + '</div>' +
-      (custom ? '' : '<svg class="gsvg" viewBox="0 0 864 1536" preserveAspectRatio="none" aria-hidden="true">' + garmentLayer(ev) + '</svg>') + '</div>';
-  }
-  function reelMedia(ev) {
-    var m = state.motion, inner, badge = '', aiChip = '', worn = wornImage();
-    if (worn) { inner = '<img class="worn" alt="' + h(worn.name) + ' 입은 모습" src="' + worn.url + '">'; badge = CATS[worn.cat] + ' · ' + worn.name + ' 입은 모습'; if (state.aiGen && state.aiGen[worn.id]) aiChip = '<button class="aichip" data-act="report">AI 생성 이미지 · 신고/문의</button>'; }
-    else if (urls.videos[m]) inner = '<video src="' + urls.videos[m] + '" loop playsinline autoplay muted></video>';
-    else inner = figure(ev);
-    return '<div class="rmedia' + (inner.indexOf('class="fig"') === 0 ? ' figbg' : '') + '" id="rmedia">' + inner + (badge ? '<span class="rbadge">' + h(badge) + '</span>' : '') + aiChip + '</div>';
+    return '<div class="rmedia" id="rmedia">' + inner + (badge ? '<span class="rbadge">' + h(badge) + '</span>' : '') + '</div>';
   }
   var IC = {
     list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
     swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>',
     tune: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
-    cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
-    hanger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7a2 2 0 1 0-2-2M12 7v2l9 6a1.5 1.5 0 0 1-.8 2.7H3.8A1.5 1.5 0 0 1 3 15l9-6"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>'
   };
 
@@ -736,11 +517,7 @@
 
   var ACT = {
     lgNew: function () { resetLogin('new'); render(); },
-    lgPick: function (el) {
-      var pu = userById(el.dataset.id);
-      if (pu && !pu.pin) { user = pu; state = load(); enterApp(); return; }
-      resetLogin('pin', el.dataset.id); render();
-    },
+    lgPick: function (el) { resetLogin('pin', el.dataset.id); render(); },
     lgDel: function (el) { resetLogin('del', el.dataset.id); render(); },
     lgBack: function () { resetLogin(); render(); },
     lgSet: function (el) { lg[el.dataset.k] = el.dataset.v; render(); },
@@ -762,7 +539,6 @@
       var it = item(el.dataset.id);
       if (!it || !confirm('"' + it.name + '" 을(를) 내 옷장에서 삭제할까요?')) return;
       state.closet = state.closet.filter(function (x) { return x.id !== it.id; });
-      dropTryon(it.id);
       Object.keys(state.sel).forEach(function (c) { if (state.sel[c] && state.sel[c].id === it.id) delete state.sel[c]; });
       save(); render();
     },
@@ -778,7 +554,6 @@
       var k = el.dataset.kind;
       blobDel(k).then(function () {
         if (k === 'avatar') { if (urls.avatar) URL.revokeObjectURL(urls.avatar); urls.avatar = null; }
-        else if (k === 'face') { if (urls.face) URL.revokeObjectURL(urls.face); urls.face = null; }
         else { var i = Number(k.slice(5)); if (urls.videos[i]) URL.revokeObjectURL(urls.videos[i]); urls.videos[i] = null; }
         render();
       });
@@ -803,7 +578,6 @@
     },
     resetAll: function () {
       if (!confirm('이 프로필에 입력한 내 정보, 옷장, 연결한 캐릭터와 영상이 모두 지워집니다. 프로필(닉네임·PIN)은 남습니다. 계속할까요?')) return;
-      state.closet.forEach(function (x) { dropTryon(x.id); });
       state = blankState(); save();
       MEDIA_KEYS.forEach(function (k) { blobDel(k).catch(function () {}); });
       clearUrls();
@@ -820,7 +594,6 @@
     }
     if (t.dataset.path && t.type !== 'checkbox' && t.tagName !== 'SELECT') {
       setPath(state, t.dataset.path, t.value); save();
-      if (t.dataset.path.indexOf('profile.') === 0) updateFig();
       if (t.dataset.hint) refreshHints();
     }
   });
@@ -850,53 +623,16 @@
       } else { state.cfg.fabric[parts[1]] = v; }
       openCfg = true; save(); render();
     } else if (t.dataset.file && t.files && t.files[0]) {
-      if (t.dataset.file === 'addCap') { processImages(Array.from(t.files)); t.value = ''; return; }
       handleFile(t.dataset.file, t.files[0]);
     }
   });
 
-  function dropTryon(id) {
-    if (urls.tryon[id]) URL.revokeObjectURL(urls.tryon[id]);
-    delete urls.tryon[id];
-    if (state.aiGen) { delete state.aiGen[id]; save(); }
-    blobDel('tryon:' + id).catch(function () {});
-  }
   function handleFile(kind, file) {
     if (kind === 'lgAvatar') {
       shrink(file, 1000, 0.92).then(function (b) { if (lg.avatarUrl) URL.revokeObjectURL(lg.avatarUrl); lg.avatar = b; lg.avatarUrl = URL.createObjectURL(b); render(); })
         .catch(function (err) { alert(err.message); });
-    } else if (kind.indexOf('tryon:') === 0) {
-      var tid = kind.slice(6);
-      if (!item(tid)) return;
-      shrink(file, 1400, 0.9).then(function (b) { return blobPut(kind, b).then(function () { if (urls.tryon[tid]) URL.revokeObjectURL(urls.tryon[tid]); urls.tryon[tid] = URL.createObjectURL(b); if (state.aiGen) { delete state.aiGen[tid]; save(); } render(); }); })
-        .catch(function () { alert('입은 모습 이미지를 저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.'); });
-    } else if (kind === 'addCap') {
-      processImages([file]);
-    } else if (kind === 'sizeCap') {
-      var d0 = state.draft;
-      if (!d0 || !window.SizeOcr) return;
-      ocr = { busy: true, msg: '글자를 읽는 중입니다. 처음에는 인식 데이터를 내려받느라 1분 가까이 걸릴 수 있어요.', ok: false }; render();
-      SizeOcr.recognize(file, function (stt, p) {
-        if (p != null && ocr.busy) { ocr.msg = '글자를 읽는 중… ' + Math.round(p * 100) + '%'; var el = root.querySelector('[data-ocrmsg]'); if (el) el.textContent = ocr.msg; }
-      }).then(function (text) {
-        var d = state.draft;
-        if (!d || d !== d0 && d.cat !== d0.cat) { ocr = { busy: false, msg: '', ok: false }; return; }
-        var r = SizeOcr.parse(text, d.cat);
-        if (!r.sizes.length) { ocr = { busy: false, msg: '사이즈표를 읽지 못했습니다. 글자가 크고 또렷하게 다시 캡처하거나, 아래 표에 직접 입력해 주세요.', ok: false }; render(); return; }
-        d.sizes = r.sizes;
-        if (r.circ) d.measureType = 'circ';
-        if (d.isRef && !d.sizes.some(function (s) { return s.label === d.refSize; })) d.refSize = d.sizes[0].label;
-        save();
-        var bad = r.bad || [];
-        ocr = { busy: false, msg: '사이즈 ' + r.sizes.length + '개' + (d.cat === 'shoe' ? '를 읽었습니다.' : ', 항목 ' + r.found + '개를 채웠습니다.') + ' 아래 표 값이 캡처와 같은지 꼭 확인해 주세요.' +
-          (bad.length ? ' 특히 의심되는 칸: ' + bad.join(', ') + ' (사이즈가 커지는데 값이 어긋남). 표 부분만 크게 캡처하면 더 정확해집니다.' : ''), ok: !bad.length };
-        render();
-      }).catch(function (err) { ocr = { busy: false, msg: err.message || '글자를 읽지 못했습니다.', ok: false }; render(); });
     } else if (kind === 'draftPhoto') {
-      shrink(file, 640, 0.85).then(blobToDataUrl).then(function (u) { state.draft.photo = u; save(); render(); }).catch(function (err) { alert(err.message); });
-    } else if (kind === 'face') {
-      faceCrop(file, 400).then(function (b) { return blobPut('face', b).then(function () { if (urls.face) URL.revokeObjectURL(urls.face); urls.face = URL.createObjectURL(b); render(); }); })
-        .catch(function (err) { alert(err.message || '얼굴 사진을 저장하지 못했습니다.'); });
+      shrink(file, 240, 0.8).then(blobToDataUrl).then(function (u) { state.draft.photo = u; save(); render(); }).catch(function (err) { alert(err.message); });
     } else if (kind === 'avatar') {
       shrink(file, 1000, 0.92).then(function (b) { return blobPut('avatar', b).then(function () { if (urls.avatar) URL.revokeObjectURL(urls.avatar); urls.avatar = URL.createObjectURL(b); render(); }); })
         .catch(function (err) { alert(err.message); });
@@ -907,65 +643,8 @@
     }
   }
 
-  /* ---- 사진 여러 장(선택 또는 공유)을 한 번에: 사이즈표는 읽어서 옷으로, 나머지는 상품 사진으로 ---- */
-  var pendingPhoto = null;
-  function processImages(files) {
-    if (!window.SizeOcr || !files.length) return;
-    if (sheet !== 'add') openSheet('add');
-    var N = files.length, i = 0, table = null, photos = [];
-    ocr = { busy: true, msg: '사진 ' + N + '장을 읽는 중입니다. 처음에는 인식 데이터를 내려받느라 1분 가까이 걸릴 수 있어요.', ok: false }; render();
-    function one(f) {
-      return SizeOcr.recognize(f, function (stt, pr) {
-        if (pr != null && ocr.busy) { ocr.msg = '사진 ' + Math.min(i, N) + '/' + N + ' 읽는 중… ' + Math.round(pr * 100) + '%'; var el = root.querySelector('[data-ocrmsg]'); if (el) el.textContent = ocr.msg; }
-      }).then(function (text) {
-        var cat = SizeOcr.detectCat(text), r = SizeOcr.parse(text, cat);
-        if (r.sizes.length && !table) table = { cat: cat, r: r }; else photos.push(f);
-      }).catch(function () { photos.push(f); });
-    }
-    function next() { if (i >= N) return Promise.resolve(); var f = files[i++]; return one(f).then(next); }
-    next().then(function () {
-      var ph = photos.length ? shrink(photos[0], 640, 0.85).then(blobToDataUrl).catch(function () { return null; }) : Promise.resolve(null);
-      return ph.then(function (dataUrl) {
-        if (dataUrl) pendingPhoto = dataUrl;
-        if (!table) {
-          ocr = { busy: false, ok: !!dataUrl, msg: dataUrl ? '상품 사진을 받았어요. 이제 사이즈표 캡처를 올려 주세요.' : '사이즈표를 읽지 못했습니다. 표 부분만 크게, 또렷하게 다시 캡처하거나 아래에서 직접 입력해 주세요.' };
-          render(); return;
-        }
-        var cat = table.cat, r = table.r, d = blankDraft(cat); d.sizes = r.sizes; if (r.circ) d.measureType = 'circ';
-        if (pendingPhoto) { d.photo = pendingPhoto; pendingPhoto = null; }
-        var bad = r.bad || [];
-        ocr = { busy: false, msg: CATS[cat] + ' 사이즈표로 읽었습니다. 사이즈 ' + r.sizes.length + '개' + (cat === 'shoe' ? '' : ', 항목 ' + r.found + '개') + '. 아래 표가 캡처와 같은지 확인해 주세요.' +
-          (r.fixed && r.fixed.length ? ' 앞뒤 값의 흐름에 맞춰 자동으로 고친 칸: ' + r.fixed.join(', ') + '.' : '') +
-          (bad.length ? ' 특히 의심되는 칸: ' + bad.join(', ') + '.' : ''), ok: !bad.length && !(r.fixed && r.fixed.length) };
-        state.draft = d; editCat = cat;
-        if (sheet === 'add') swapSheet('edit'); else { state.draft = null; render(); }
-      });
-    });
-  }
-  /* 공유(Web Share Target)로 들어온 사진: 서비스워커가 캐시에 넣어 두고 ?shared=N 으로 열어 준다 */
-  function checkShared() {
-    var m = /[?&]shared=(\d+)/.exec(location.search);
-    if (!m || !window.caches) return;
-    var n = Math.min(Number(m[1]), 6);
-    try { history.replaceState(history.state || {}, '', location.pathname); } catch (e) {}
-    caches.open('fit-share').then(function (c) {
-      var rs = []; for (var k = 0; k < n; k++) rs.push(c.match('shared/' + k));
-      return Promise.all(rs).then(function (list) {
-        return Promise.all(list.filter(Boolean).map(function (r) { return r.blob(); })).then(function (blobs) {
-          return c.keys().then(function (ks) { return Promise.all(ks.map(function (x) { return c.delete(x); })); }).then(function () { return blobs; });
-        });
-      });
-    }).then(function (blobs) {
-      var files = blobs.map(function (b, k) { return new File([b], 'shared' + k + '.jpg', { type: b.type || 'image/jpeg' }); });
-      if (files.length) processImages(files);
-    }).catch(function () { /* 공유 사진을 못 읽으면 일반 화면 */ });
-  }
   var tx = null;
-  function swapSheet(name) {
-    try { history.replaceState({ sh: name }, ''); } catch (e) {}
-    sheet = name; render();
-  }
-  root.addEventListener('touchstart', function (e) { tx = (e.target.closest('#rmedia')) ? e.touches[0].clientX : null; }, { passive: true });
+  root.addEventListener('touchstart', function (e) { tx = e.target.closest('#rmedia') ? e.touches[0].clientX : null; }, { passive: true });
   root.addEventListener('touchend', function (e) {
     if (tx === null) return;
     var dx = e.changedTouches[0].clientX - tx; tx = null;
@@ -994,96 +673,7 @@
     return '<div class="tile' + (isSel ? ' sel' : '') + '"><div class="timg">' + img +
       (it.isRef ? '<span class="tbadge">기준 옷</span>' : '') + (isSel ? '<span class="tcheck">✓</span>' : '') +
       '<span class="tact"><button class="btn sm" data-act="edit" data-id="' + it.id + '" aria-label="수정">수정</button><button class="btn sm danger" data-act="delItem" data-id="' + it.id + '" aria-label="삭제">삭제</button></span></div>' +
-      '<div class="tname">' + h(it.name) + '</div>' + (priceText(it.price) ? '<div class="price">' + priceText(it.price) + '</div>' : '') + '<div class="sub">' + meta + '</div><div class="chips">' + chips + '</div>' + tryonRow(it) + buyLink(it, 'buy') + '</div>';
-  }
-
-  /* ---- 입혀 보기(AI): Supabase Edge Function 이 기본 캐릭터 + 상품 사진으로 입은 모습을 만든다 ---- */
-  var genPending = null;                       /* 만드는 중인 옷 id (한 번에 하나만) */
-  var GEN_KEY = function () { return 'fit-gen-pending:' + (user ? user.id : ''); };
-  function deviceId() {
-    try {
-      var d = localStorage.getItem('fit-device');
-      if (!d) { d = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); localStorage.setItem('fit-device', d); }
-      return d;
-    } catch (e) { return 'tmp' + Math.random().toString(16).slice(2) + Date.now().toString(16); }
-  }
-  function genEnabled() { var c = window.TRYON_CFG; return !!(c && c.enabled && c.url && c.anon); }
-  function genCall(body) {
-    var c = window.TRYON_CFG;
-    return fetch(c.url.replace(/\/$/, '') + '/functions/v1/tryon', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', apikey: c.anon, Authorization: 'Bearer ' + c.anon }, body: JSON.stringify(body)
-    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
-  }
-  function toast(msg) {
-    var el = document.createElement('div');
-    el.className = 'toast'; el.textContent = msg; document.body.appendChild(el);
-    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 4500);
-  }
-  function genButton(it) {
-    if (!genEnabled() || !it.photo) return '';
-    if (genPending === it.id) return '<button class="btn sm" disabled>만드는 중… 다른 걸 해도 돼요</button>';
-    return '<button class="btn sm p" data-act="genTryon" data-id="' + it.id + '"' + (genPending ? ' disabled' : '') + '>' + (urls.tryon[it.id] ? 'AI로 다시 입히기' : 'AI로 입혀 보기') + '</button>';
-  }
-  function genFinish(id, ok, msg) {
-    genPending = null;
-    try { localStorage.removeItem(GEN_KEY()); } catch (e) {}
-    if (msg) toast(msg);
-    render();
-  }
-  /* 4초마다 결과를 확인한다. 화면을 닫았다 열어도 이어서 확인한다 */
-  function genPoll(id, taskId, t0) {
-    if (!user || genPending !== id) return;
-    if (Date.now() - t0 > 6 * 60 * 1000) { genFinish(id, false, '입은 모습을 만드는 데 너무 오래 걸려 중단했어요. 나중에 다시 시도해 주세요.'); return; }
-    genCall({ action: 'status', taskId: taskId }).then(function (res) {
-      if (!res.ok) throw new Error('retry');
-      var j = res.j;
-      if (j.status === 'success' && j.image) {
-        var bin = atob(j.image), u = new Uint8Array(bin.length);
-        for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-        var blob = new Blob([u], { type: j.mime || 'image/png' });
-        return blobPut('tryon:' + id, blob).then(function () {
-          if (urls.tryon[id]) URL.revokeObjectURL(urls.tryon[id]);
-          urls.tryon[id] = URL.createObjectURL(blob);
-          state.aiGen = state.aiGen || {}; state.aiGen[id] = true; state.view = 'char'; save();
-          var it = item(id);
-          genFinish(id, true, (it ? it.name : '옷') + ' 입은 모습이 완성됐어요!');
-        });
-      }
-      if (j.status === 'failed') { genFinish(id, false, '입은 모습을 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.'); return; }
-      setTimeout(function () { genPoll(id, taskId, t0); }, 4000);
-    }).catch(function () { setTimeout(function () { genPoll(id, taskId, t0); }, 6000); });
-  }
-  ACT.genTryon = function (el) {
-    var it = item(el.dataset.id);
-    if (!it || genPending || !genEnabled()) return;
-    if (!it.photo) { alert('먼저 이 옷의 상품 사진을 올려 주세요. (수정 → 상품 사진)'); return; }
-    var first = false;
-    try { first = !localStorage.getItem('fit-gen-ok'); } catch (e) { first = true; }
-    if (first && !confirm('이 옷의 상품 사진이 AI 이미지 생성 서버(Supabase·TopView)로 전송되어 입은 모습을 만듭니다. 내 얼굴 사진과 몸 정보는 전송되지 않아요. 만들어진 이미지는 AI가 생성한 것이라 실제 상품과 다를 수 있고, 하루 이용 횟수가 정해져 있습니다. 계속할까요?')) return;
-    if (urls.tryon[it.id] && !confirm('이미 만든 입은 모습이 있습니다. 다시 만들면 하루 이용 횟수가 한 번 더 쓰입니다. 계속할까요?')) return;
-    try { localStorage.setItem('fit-gen-ok', '1'); } catch (e) {}
-    var id = it.id;
-    genPending = id; render();
-    genCall({ device: deviceId(), cat: it.cat, garment: it.photo, gender: isMale() ? 'male' : 'female' }).then(function (res) {
-      if (!res.ok || !res.j.taskId) throw new Error((res.j && res.j.error) || '요청을 접수하지 못했습니다.');
-      var t0 = Date.now();
-      try { localStorage.setItem(GEN_KEY(), JSON.stringify({ id: id, taskId: res.j.taskId, t0: t0 })); } catch (e) {}
-      toast('만드는 중이에요. 다른 옷을 보고 있어도 완성되면 알려 드릴게요.');
-      genPoll(id, res.j.taskId, t0);
-    }).catch(function (err) { genFinish(id, false, (err && err.message) || '요청을 접수하지 못했습니다.'); });
-  };
-  function genResume() {
-    if (!user || genPending || !genEnabled()) return;
-    try {
-      var p = JSON.parse(localStorage.getItem(GEN_KEY()) || 'null');
-      if (p && p.id && p.taskId && item(p.id) && Date.now() - p.t0 < 6 * 60 * 1000) { genPending = p.id; render(); genPoll(p.id, p.taskId, p.t0); }
-      else if (p) localStorage.removeItem(GEN_KEY());
-    } catch (e) {}
-  }
-  function tryonRow(it) {
-    var has = !!urls.tryon[it.id];
-    return '<div class="tryon">' + genButton(it) + '<label class="btn sm" style="cursor:pointer">' + (has ? '입은 모습 바꾸기' : '입은 모습 올리기') + '<input type="file" accept="image/*" data-file="tryon:' + it.id + '" hidden></label>' +
-      (has ? '<button class="btn sm danger" data-act="clearTryon" data-id="' + it.id + '">삭제</button>' : '') + '</div>';
+      '<div class="tname">' + h(it.name) + '</div>' + (priceText(it.price) ? '<div class="price">' + priceText(it.price) + '</div>' : '') + '<div class="sub">' + meta + '</div><div class="chips">' + chips + '</div>' + buyLink(it, 'buy') + '</div>';
   }
 
   function sheetInner(ev) {
@@ -1106,81 +696,44 @@
         '<div class="note">추정 결과이며 실제 착용감을 보장하지 않습니다.</div><button class="btn" data-act="closeSheet">닫기</button>';
     }
     if (sheet === 'cfg') { openCfg = true; return '<h3>등급 기준 보정</h3>' + cfgPanel() + '<button class="btn" data-act="closeSheet">닫기</button>'; }
-    if (sheet === 'about') {
-      var st = window.STORE || {}, mail = st.email ? 'mailto:' + encodeURIComponent(st.email) : '';
-      return '<h3>정보·문의</h3>' +
-        '<div class="card"><div class="h"><span>AI FIT ' + h(APP_VERSION) + '</span></div><div class="note">쇼핑몰의 사이즈표와 상품 사진을 캡처해 올리면 내 체형에 맞는 사이즈를 추정해 주는 앱입니다.</div></div>' +
-        '<div class="card"><div class="h"><span>AI 생성 이미지 안내</span></div><div class="note">"AI로 입혀 보기"로 만든 이미지는 AI가 생성한 것으로 실제 상품의 색·모양·착용감과 다를 수 있습니다. 사이즈 판정은 입력한 치수를 바탕으로 한 추정이며 실제 착용감을 보장하지 않습니다.</div></div>' +
-        '<div class="card"><div class="h"><span>내 정보는 어디에 저장되나요?</span></div><div class="note">성별·키·몸무게·치수, 옷장, 얼굴 사진은 이 기기 안에만 저장됩니다. AI로 입혀 보기를 쓸 때만 해당 옷의 상품 사진이 서버로 전송됩니다. 앱 데이터를 지우거나 설정의 "이 프로필 데이터 지우기"를 누르면 기기의 정보가 삭제됩니다.</div></div>' +
-        '<div class="acts"><a class="btn" href="privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>' + (mail ? '<a class="btn" href="' + mail + '?subject=' + encodeURIComponent('[AI FIT] 문의·신고') + '">문의·신고 메일</a>' : '') + '</div>' +
-        (mail ? '' : '<div class="note">문의·신고 연락처는 개인정보처리방침 페이지에서 확인할 수 있어요.</div>') +
-        '<button class="btn p" data-act="closeSheet">닫기</button>';
-    }
-    if (sheet === 'add') {
-      var busyMsg = ocr.msg ? '<div data-ocrmsg class="' + (ocr.ok ? 'note' : 'warn') + '">' + h(ocr.msg) + '</div>' : '';
-      return '<h3>옷 추가</h3><div class="note">쇼핑몰에서 <b>사이즈표를 캡처</b>해서 올리면 치수를 자동으로 읽고, 상의·하의·신발도 알아서 구분합니다. 상품 사진 캡처와 <b>한 번에 같이 선택</b>해도 됩니다.</div>' +
-        '<label class="bigbtn">' + IC.cam + (ocr.busy ? '읽는 중입니다…' : '사이즈표 캡처 올리기') + '<input type="file" accept="image/*" data-file="addCap" multiple hidden' + (ocr.busy ? ' disabled' : '') + '></label>' + busyMsg +
-        '<div class="note">💡 <b>공유로 보내기:</b> 캡처한 뒤 화면의 <b>공유</b> 버튼을 눌러 <b>AI FIT</b>을 고르면 바로 들어옵니다. (홈 화면에 설치한 안드로이드 폰)</div>' +
-        '<div class="sec">사이즈표가 없거나 읽지 못했나요?</div><div class="acts"><button class="btn sm" data-act="new" data-cat="top">상의 직접 입력</button><button class="btn sm" data-act="new" data-cat="bottom">하의 직접 입력</button><button class="btn sm" data-act="new" data-cat="shoe">신발 직접 입력</button></div>' +
-        '<button class="btn" data-act="closeSheet">닫기</button>';
-    }
-    if (sheet === 'closet') {
-      var total = state.closet.length;
-      return '<h3>내 옷장</h3>' + (total ? ['top', 'bottom', 'shoe'].map(function (c) {
-        var list = state.closet.filter(function (x) { return x.cat === c; });
-        return list.length ? '<div class="sec">' + CATS[c] + '</div><div class="hs">' + list.map(function (x) { return closetTile(x, c); }).join('') + '</div>' : '';
-      }).join('') : '<div class="empty">아직 옷이 없어요. 📷 옷 추가로 첫 옷을 올려 보세요.</div>') +
-        '<div class="note">옷을 누르면 캐릭터가 그 옷을 입고, 사이즈 버튼으로 크기를 바꿔 볼 수 있어요.</div>' +
-        '<div class="acts"><button class="btn" data-act="open" data-name="add">＋ 옷 추가</button><button class="btn p" data-act="closeSheet">완료</button></div>';
-    }
-    if (sheet === 'start') {
-      return '<h3>내 몸 정보</h3><div class="note">키와 몸무게를 넣으면 캐릭터가 내 체형으로 바뀝니다. 아래 치수는 <b>모르면 비워 두세요.</b> 키·몸무게로 자동 계산한 값을 대신 씁니다. 입력한 정보와 얼굴 사진은 이 기기 안에만 저장돼요.</div>' + basicForm() + faceRow() +
-        '<div class="sec">내 치수 (모르면 비워 두기)</div>' + advForm(true) +
-        (!E.num(state.profile.height) ? '<div class="note" data-startwarn>키를 입력하면 시작할 수 있어요.</div>' : '') +
-        '<button class="btn p" data-act="startDone">시작하기</button>';
-    }
     /* settings */
     var av = urls.avatar ? '<img class="uav big" alt="" src="' + urls.avatar + '">' : '<span class="uav big">' + h(String(user.nick).charAt(0)) + '</span>';
-    return '<h3>설정</h3><div class="sec">내 몸 정보</div>' + basicForm() + faceRow() +
-      '<div class="sec">내 치수 (모르면 비워 두기)</div>' + advForm() +
-      '<details class="card adv"><summary><b>고급</b> · 다른 캐릭터·프로필·초기화</summary>' +
-      '<div class="ucard">' + av + '<div><b>' + h(user.nick) + ' 님</b><div class="note">이 기기 안에 저장된 프로필</div></div></div>' +
-      '<div class="acts"><button class="btn sm" data-act="logout">프로필 바꾸기</button></div>' + mediaCard() +
+    return '<h3>설정</h3>' +
+      (!E.num(state.profile.height) ? '<div class="rec">먼저 성별·키·몸무게를 입력해 주세요. 치수는 나중에 여기서 언제든 바꿀 수 있어요.</div>' : '') +
+      '<div class="card"><div class="ucard">' + av + '<div><b>' + h(user.nick) + ' 님</b><div class="note">이 기기 안에 저장된 프로필</div></div></div>' +
+      '<div class="acts"><button class="btn sm" data-act="logout">프로필 바꾸기</button><button class="btn sm danger" data-act="logout">로그아웃</button></div></div>' +
+      '<div class="sec">내 정보 변경</div>' + profileForm() + mediaCard() +
       '<button class="btn" data-act="open" data-name="cfg">등급 기준 보정</button>' +
-      '<button class="btn" data-act="sample">기본 모델 + 예시 옷으로 맞추기</button>' +
-      '<button class="btn danger" data-act="resetAll">이 프로필 데이터 지우기</button></details>' +
-      '<button class="btn" data-act="open" data-name="about">정보·문의·개인정보처리방침</button>' +
+      '<button class="btn" data-act="sample">예시 데이터 불러오기</button>' +
+      '<button class="btn danger" data-act="resetAll">이 프로필 데이터 지우기</button>' +
       '<button class="btn p" data-act="closeSheet">완료</button>';
   }
 
   function viewMain() {
-    var ev = safeEval(); lastEv = ev;
-    var concl = '';
-    if (ev.results.length) {
-      var r0 = ev.results[0], p0 = r0.current && r0.current.primary;
-      concl = '<button class="rconc" data-act="open" data-name="detail">' + (r0.cat === 'shoe' ? h(r0.chosen) + ' 사이즈' : h(r0.chosen) + ' 사이즈') + (p0 ? ' · ' + p0.grade : '') +
-        '</button>';
-    }
+    var ev = safeEval();
+    var segs = MOTIONS.map(function (x, i) { return '<button data-act="motion" data-i="' + i + '" class="' + (state.motion === i ? 'on' : '') + '" aria-label="' + x + '"><i></i><span>' + x + '</span></button>'; }).join('');
     var chips = ev.results.map(function (r) {
       var p = r.current && r.current.primary;
       return '<button class="fchip" data-act="open" data-name="detail"><span class="k">' + CATS[r.cat] + ' · ' + h(r.chosen) + '</span>' +
         (p ? '<span class="grade gk-' + p.gradeKey + '">' + p.grade + ' ' + sgn(p.ease) + p.unit + '</span>' : '') + '</button>';
     }).join('');
-    var hasSel = Object.keys(state.sel).some(function (c) { return state.sel[c] && item(state.sel[c].id); });
-    var rail = '<button data-act="open" data-name="add" class="' + (sheet === 'add' ? 'on' : '') + '" aria-label="옷 추가">' + IC.cam + '<span>옷 추가</span></button>' +
-      '<button data-act="open" data-name="closet" class="' + (sheet === 'closet' ? 'on' : '') + (hasSel ? ' has' : '') + '" aria-label="내 옷장">' + IC.hanger + '<span>내 옷장</span></button>' +
+    var rail = ['top', 'bottom', 'shoe'].map(function (c) {
+      var has = state.sel[c] && item(state.sel[c].id);
+      return '<button data-act="open" data-name="' + c + '" class="' + (sheet === c ? 'on' : '') + (has ? ' has' : '') + '" aria-label="' + CATS[c] + '"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">' + GLYPH[c] + '</svg><span>' + CATS[c] + '</span></button>';
+    }).join('') +
+      '<button data-act="open" data-name="detail" class="' + (sheet === 'detail' ? 'on' : '') + '" aria-label="핏 상세">' + IC.list + '<span>상세</span></button>' +
       '<button data-act="open" data-name="settings" class="' + (sheet === 'settings' ? 'on' : '') + '" aria-label="설정">' + IC.gear + '<span>설정</span></button>';
     var sh = '';
     if (sheet) {
-      var half = SHEET_HALF[sheet] || sheet === 'add';
+      var half = SHEET_HALF[sheet];
       sh = '<div class="sheetbg' + (half ? ' lite' : '') + '" data-act="closeSheet"></div><div class="sheet' + (half ? ' half' : '') + '" role="dialog" aria-modal="true"><div class="grab"></div>' + sheetInner(ev) + '</div>';
     }
-    return '<div class="reel">' + reelMedia(ev) +
-      '<div class="rtop"><div class="rbar"><div class="wm">AI FIT</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
+    return '<div class="reel">' + reelMedia() +
+      '<div class="rtop"><div class="rsegs">' + segs + '</div><div class="rbar"><div class="wm">AI FIT</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
       '<div class="rrail">' + rail + '</div>' +
-      '<div class="rcap">' + concl + (ev.results.length ? '' : '<div class="fchips">') + (chips && ev.results.length ? '' : (E.num(state.profile.height) ? '<span class="fchip">오른쪽 📷 버튼으로 옷을 추가해 보세요</span>' : '<button class="fchip" data-act="open" data-name="start">내 키·몸무게 입력하기</button>')) + (ev.results.length ? '' : '</div>') +
+      '<div class="rcap"><div class="rwho">@' + h(user.nick) + ' · 오늘의 코디</div><div class="fchips">' + (chips || '<span class="fchip">아래 버튼에서 옷을 골라 보세요</span>') + '</div>' +
       (ev.note ? '<div class="rnote">' + h(ev.note) + '</div>' : '') +
-      '</div>' + sh + '</div>';
+      '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다 · 좌우로 넘겨 동작 바꾸기</div></div>' + sh + '</div>';
   }
 
   function render() {
@@ -1194,14 +747,13 @@
     }
     if (sheet === 'edit' && !state.draft) sheet = editCat;
     if (!E.num(state.profile.height) && !onbShown) {
-      onbShown = true; sheet = 'start';
-      try { history.pushState({ sh: 'start' }, ''); } catch (e) {}
+      onbShown = true; sheet = 'settings';
+      try { history.pushState({ sh: 'settings' }, ''); } catch (e) {}
     }
     var old = root.querySelector('.sheet'), hs = root.querySelector('.hs');
     var st = old && lastSheet === sheet ? old.scrollTop : 0, sl = hs && lastSheet === sheet ? hs.scrollLeft : 0;
     root.className = 'reelmode';
     root.innerHTML = viewMain();
-    (function () { var c = root.querySelector('.rcap'), m = root.querySelector('.rmedia'); if (c && m && m.querySelector('.fig')) m.style.bottom = c.offsetHeight + 'px'; })();
     lastSheet = sheet;
     var ns = root.querySelector('.sheet'), nh = root.querySelector('.hs');
     if (ns) ns.scrollTop = st;
@@ -1227,63 +779,15 @@
     else { sheet = null; state.draft = null; render(); }
   };
   ACT.pick = function (el) { state.sel[el.dataset.cat] = { id: el.dataset.id, size: el.dataset.size || null }; save(); render(); };
-  ACT.clearTryon = function (el) { dropTryon(el.dataset.id); render(); };
-  ACT.sample = function () {
-    if ((state.closet.length || state.profile.height) && !confirm('내 정보와 옷장이 기본 모델(여성 ' + MODEL.height + 'cm/' + MODEL.weight + 'kg)과 예시 옷으로 바뀝니다. 계속할까요?')) return;
-    state.closet.forEach(function (x) { dropTryon(x.id); });
-    state.profile = { gender: MODEL.gender, height: MODEL.height, weight: MODEL.weight, pref: 'fit', m: {} };
-    state.closet = sampleCloset(); state.sel = defaultSel(); state.seq = 10; state.feel = {}; state.draft = null;
-    save(); render();
-  };
-  ACT.autoFill = function () {
-    if (!E.num(state.profile.height)) { alert('먼저 키를 입력해 주세요.'); return; }
-    var est = E.bodyOf(state.profile, cfgNow()).vals;
-    MFIELDS.forEach(function (f) {
-      var cur = state.profile.m[f[0]];
-      if ((cur == null || cur === '') && est[f[0]] != null) state.profile.m[f[0]] = String(Math.round(est[f[0]] * 10) / 10);
-    });
-    save(); render(); updateFig();
-  };
-  ACT.report = function () {
-    var st = window.STORE || {};
-    if (st.email) { location.href = 'mailto:' + encodeURIComponent(st.email) + '?subject=' + encodeURIComponent('[AI FIT] AI 생성 이미지 신고') + '&body=' + encodeURIComponent('신고할 내용을 적어 주세요.\n(옷 이름: ' + ((wornImage() || {}).name || '') + ')'); }
-    else openSheet('about');
-  };
-  ACT.startDone = function () {
-    if (!E.num(state.profile.height)) { var w = root.querySelector('[data-startwarn]'); if (w) w.classList.add('warn'); return; }
-    ACT.closeSheet();
-  };
   ACT.clearSel = function (el) { delete state.sel[el.dataset.cat]; save(); render(); };
   var _new = ACT.new, _edit = ACT.edit, _save = ACT.saveDraft, _logout = ACT.logout;
-  ACT.new = function (el) { editCat = el.dataset.cat; ocr = { busy: false, msg: '', ok: false }; _new(el); if (sheet === 'add') swapSheet('edit'); else openSheet('edit'); };
-  ACT.edit = function (el) { var it = item(el.dataset.id); if (!it) return; editCat = it.cat; ocr = { busy: false, msg: '', ok: false }; _edit(el); openSheet('edit'); };
-  ACT.saveDraft = function () {
-    var wasNew = !!(state.draft && !state.draft.id), cat = state.draft && state.draft.cat;
-    _save();
-    if (!state.draft) {
-      if (wasNew) { var it = state.closet[state.closet.length - 1]; if (it && it.cat === cat) { state.sel[cat] = { id: it.id, size: null }; save(); } }
-      ACT.closeSheet();
-    }
-  };
+  ACT.new = function (el) { editCat = el.dataset.cat; _new(el); openSheet('edit'); };
+  ACT.edit = function (el) { var it = item(el.dataset.id); if (!it) return; editCat = it.cat; _edit(el); openSheet('edit'); };
+  ACT.saveDraft = function () { _save(); if (!state.draft) ACT.closeSheet(); };
   ACT.cancelEdit = function () { state.draft = null; ACT.closeSheet(); };
   ACT.logout = function () { onbShown = false; sheet = null; try { history.replaceState({}, ''); } catch (e) {} _logout(); };
 
-  /* 이미지 화면을 누르면 전체 화면으로 보기(다시 누르거나 ✕ 로 닫기) */
-  function closeFull() { var o = document.getElementById('fsview'); if (o) o.remove(); document.removeEventListener('keydown', fullKey); }
-  function fullKey(e) { if (e.key === 'Escape') closeFull(); }
-  function openFull(m) {
-    closeFull();
-    var c = m.cloneNode(true); c.removeAttribute('id'); c.style.bottom = '0';
-    Array.prototype.forEach.call(c.querySelectorAll('.rbadge,.aichip,.d3legend,.d3front,.d3hint'), function (n) { n.remove(); });
-    var o = document.createElement('div'); o.id = 'fsview'; o.appendChild(c);
-    o.insertAdjacentHTML('beforeend', '<button type="button" class="fsx" aria-label="닫기">✕</button>');
-    o.addEventListener('click', closeFull);
-    document.body.appendChild(o);
-    document.addEventListener('keydown', fullKey);
-  }
   root.addEventListener('click', function (e) {
-    var m = e.target.closest('#rmedia');
-    if (m && !e.target.closest('[data-act],button,a') && !m.classList.contains('d3')) { openFull(m); return; }
     var el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;
     var fn = ACT[el.dataset.act];
@@ -1292,6 +796,5 @@
 
   try { history.replaceState({}, ''); } catch (e) {}
   render();
-  loadMedia().then(function () { render(); genResume(); checkShared(); });
-  if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {} }
+  loadMedia().then(render);
 })();
