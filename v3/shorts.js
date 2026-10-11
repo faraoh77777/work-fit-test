@@ -807,10 +807,6 @@
       return;
     }
     if (sheet === 'edit' && !state.draft) sheet = editCat;
-    if (!E.num(state.profile.height) && !onbShown) {
-      onbShown = true; sheet = 'settings';
-      try { history.pushState({ sh: 'settings' }, ''); } catch (e) {}
-    }
     var old = root.querySelector('.sheet'), hs = root.querySelector('.hs');
     var st = old && lastSheet === sheet ? old.scrollTop : 0, sl = hs && lastSheet === sheet ? hs.scrollLeft : 0;
     root.className = 'reelmode';
