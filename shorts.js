@@ -1142,7 +1142,7 @@
     /* settings */
     var av = urls.avatar ? '<img class="uav big" alt="" src="' + urls.avatar + '">' : '<span class="uav big">' + h(String(user.nick).charAt(0)) + '</span>';
     return '<h3>설정</h3><div class="sec">내 몸 정보</div>' + basicForm() + faceRow() +
-      '<details class="card adv"><summary><b>더 정확하게 (선택)</b> · 내 치수·선호 핏</summary>' + advForm() + '</details>' +
+      '<div class="sec">내 치수 (모르면 비워 두기)</div>' + advForm() +
       '<details class="card adv"><summary><b>고급</b> · 다른 캐릭터·프로필·초기화</summary>' +
       '<div class="ucard">' + av + '<div><b>' + h(user.nick) + ' 님</b><div class="note">이 기기 안에 저장된 프로필</div></div></div>' +
       '<div class="acts"><button class="btn sm" data-act="logout">프로필 바꾸기</button></div>' + mediaCard() +
