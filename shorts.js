@@ -53,7 +53,7 @@
   function defaultSel() { return { top: { id: 'p1', size: null }, bottom: { id: 'p3', size: null }, shoe: { id: 'p4', size: null } }; }
   function blankState() {
     return { step: 'profile', profile: { gender: 'male', height: '', weight: '', pref: 'fit', m: {} },
-      closet: [], sel: {}, draft: null, motion: 0, cfg: null, feel: {}, seq: 1, aiGen: {}, view: '3d' };
+      closet: [], sel: {}, draft: null, motion: 0, cfg: null, feel: {}, seq: 1, aiGen: {}, view: 'char', viewV: 2 };
   }
   /* ---------- 프로필(이 기기 안 로그인) ---------- */
   function readUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch (e) { return []; } }
@@ -89,7 +89,11 @@
   function load() {
     try {
       var raw = localStorage.getItem(KEY + ':' + user.id);
-      if (raw) { var s = JSON.parse(raw); return Object.assign(blankState(), s); }
+      if (raw) {
+        var s = JSON.parse(raw), st = Object.assign(blankState(), s);
+        if (st.viewV !== 2) { st.view = 'char'; st.viewV = 2; }      /* 기본 화면은 원본 캐릭터(3D 핏은 선택) */
+        return st;
+      }
     } catch (e) { /* 저장소를 못 쓰면 메모리로만 동작 */ }
     return blankState();
   }
@@ -1150,7 +1154,7 @@
 
   function viewMain() {
     var ev = safeEval(); lastEv = ev;
-    var segs = [['3d', '3D 핏'], ['char', '캐릭터']].map(function (o) { return '<button data-act="view" data-v="' + o[0] + '" class="' + (state.view === o[0] ? 'on' : '') + '" aria-label="' + o[1] + '"><i></i><span>' + o[1] + '</span></button>'; }).join('');
+    var segs = [['char', '캐릭터'], ['3d', '3D 핏']].map(function (o) { return '<button data-act="view" data-v="' + o[0] + '" class="' + (state.view === o[0] ? 'on' : '') + '" aria-label="' + o[1] + '"><i></i><span>' + o[1] + '</span></button>'; }).join('');
     var concl = '';
     if (ev.results.length) {
       var r0 = ev.results[0], p0 = r0.current && r0.current.primary;
