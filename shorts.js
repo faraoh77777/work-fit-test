@@ -1156,7 +1156,7 @@
     if (ev.results.length) {
       var r0 = ev.results[0], p0 = r0.current && r0.current.primary;
       concl = '<button class="rconc" data-act="open" data-name="detail">' + (r0.cat === 'shoe' ? h(r0.chosen) + ' 사이즈' : h(r0.chosen) + ' 사이즈') + (p0 ? ' · ' + p0.grade : '') +
-        '<small>' + CATS[r0.cat] + ' · ' + h(r0.garment.name) + (r0.recommended && r0.recommended !== r0.chosen ? ' · 추천은 ' + h(r0.recommended) : '') + ' · 눌러서 자세히</small></button>';
+        '</button>';
     }
     var chips = ev.results.map(function (r) {
       var p = r.current && r.current.primary;
@@ -1175,9 +1175,9 @@
     return '<div class="reel">' + reelMedia(ev) +
       '<div class="rtop"><div class="rbar"><div class="wm">AI FIT</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
       '<div class="rrail">' + rail + '</div>' +
-      '<div class="rcap"><div class="rwho">@' + h(user.nick) + ' · 오늘의 코디</div>' + concl + (ev.results.length ? '' : '<div class="fchips">') + (chips && ev.results.length ? '' : (E.num(state.profile.height) ? '<span class="fchip">오른쪽 📷 버튼으로 옷을 추가해 보세요</span>' : '<button class="fchip" data-act="open" data-name="start">내 키·몸무게 입력하기</button>')) + (ev.results.length ? '' : '</div>') +
+      '<div class="rcap">' + concl + (ev.results.length ? '' : '<div class="fchips">') + (chips && ev.results.length ? '' : (E.num(state.profile.height) ? '<span class="fchip">오른쪽 📷 버튼으로 옷을 추가해 보세요</span>' : '<button class="fchip" data-act="open" data-name="start">내 키·몸무게 입력하기</button>')) + (ev.results.length ? '' : '</div>') +
       (ev.note ? '<div class="rnote">' + h(ev.note) + '</div>' : '') +
-      '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다 · 좌우로 넘겨 동작 바꾸기</div></div>' + sh + '</div>';
+      '</div>' + sh + '</div>';
   }
 
   function render() {
