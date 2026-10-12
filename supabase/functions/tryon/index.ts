@@ -16,10 +16,13 @@ const MAX_AV_B64 = 4_000_000; // 내 아바타 base64 길이 상한(약 3MB)
 
 const PROMPTS: Record<string, string> = {
   top: "Image 1 is a full-body photo of a woman standing. Image 2 is a product photo of a top. Edit image 1 so she wears exactly the top shown in image 2 (same color, collar, pattern, sleeve length and fit) instead of her current top.",
-  bottom: "Image 1 is a full-body photo of a woman standing. Image 2 is a product photo of bottoms. Edit image 1 so she wears exactly the bottoms shown in image 2 (same color, length, cut and fit) instead of her current shorts.",
+  bottom: "Image 1 is a full-body photo of a woman standing. Image 2 is a product photo of bottoms. Edit image 1 so she wears exactly the bottoms shown in image 2 (same color, length, cut and fit) instead of her current bottoms.",
   shoe: "Image 1 is a full-body photo of a woman standing barefoot. Image 2 is a product photo of shoes. Edit image 1 so she wears exactly the shoes shown in image 2 (same color and design).",
 };
 const KEEP = " Keep her face, hair, pose, body proportions, the other clothing, the plain gray background and the framing unchanged. Photorealistic result. Do not add text, logos or accessories.";
+
+/* 내 아바타를 쓸 때: 몸은 한 픽셀도 바꾸지 말고 옷만 바꾼다(핏 확인용이라 체형이 달라지면 안 된다) */
+const KEEP_BODY = " This is a fit-check: the person's body must stay IDENTICAL to image 1. Do NOT slim, widen, lengthen, reshape or retouch the body. Keep exactly the same height, head size, shoulder width, bust, waist, hip and thigh widths, arm and leg thickness and length, body silhouette, skin, face, hair, pose, hands, the plain background and the framing, pixel-aligned with image 1. Change ONLY the clothing item named above, and render it realistically at its true cut and fit on that unchanged body (tight where it is tight, loose where it is loose, do not tailor it to flatter the body). Keep every other garment as it is. Photorealistic result. Do not add text, logos or accessories.";
 
 function toMale(t: string, male: boolean) {
   return male ? t.replace(/a woman/g, "a man").replace(/she/g, "he").replace(/her/g, "his") : t;
@@ -91,7 +94,7 @@ async function submitTopview(male: boolean, cat: string, garmentBytes: Uint8Arra
   }
   const [avId, gId] = await Promise.all([tvUpload(avBytes, "jpg", "image/jpeg"), tvUpload(garmentBytes, garmentExt, garmentMime)]);
   const sub = await tvPost("/v1/common_task/image_edit/task/submit", {
-    model: TV_MODEL, prompt: toMale(PROMPTS[cat] + KEEP, male), aspectRatio: "9:16", resolution: "1K", generateCount: 1, inputImageFileIds: [avId, gId],
+    model: TV_MODEL, prompt: toMale(PROMPTS[cat] + (myAvatar ? KEEP_BODY : KEEP), male), aspectRatio: "9:16", resolution: "1K", generateCount: 1, inputImageFileIds: [avId, gId],
   });
   const taskId = sub.taskId;
   if (!taskId) throw new Error("topview no taskId " + JSON.stringify(sub).slice(0, 200));
