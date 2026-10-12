@@ -430,6 +430,7 @@
   }
 
   /* 고른 옷(상의→하의→신발 순) 중 '입은 모습' 이미지가 연결된 첫 번째 */
+  function hasMotionVideo() { return urls.videos.some(Boolean); }
   function wornImage() {
     var c = ['top', 'bottom', 'shoe'];
     for (var i = 0; i < c.length; i++) {
@@ -738,7 +739,7 @@
   root.addEventListener('touchend', function (e) {
     if (tx === null) return;
     var dx = e.changedTouches[0].clientX - tx; tx = null;
-    if (Math.abs(dx) < 50) return;
+    if (Math.abs(dx) < 50 || !hasMotionVideo()) return; /* 동작 영상이 없으면 넘겨도 바뀌는 게 없다 */
     state.motion = (state.motion + (dx < 0 ? 1 : MOTIONS.length - 1)) % MOTIONS.length; save(); render();
   }, { passive: true });
 
@@ -941,7 +942,7 @@
   function viewMain() {
     ensureStyle();
     var ev = safeEval();
-    var segs = MOTIONS.map(function (x, i) { return '<button data-act="motion" data-i="' + i + '" class="' + (state.motion === i ? 'on' : '') + '" aria-label="' + x + '"><i></i><span>' + x + '</span></button>'; }).join('');
+    var segs = !hasMotionVideo() ? '' : MOTIONS.map(function (x, i) { return '<button data-act="motion" data-i="' + i + '" class="' + (state.motion === i ? 'on' : '') + '" aria-label="' + x + '"><i></i><span>' + x + '</span></button>'; }).join('');
     var chips = ev.results.map(function (r) {
       var p = r.current && r.current.primary;
       return '<button class="fchip" data-act="open" data-name="detail"><span class="k">' + CATS[r.cat] + ' · ' + h(r.chosen) + '</span>' +
@@ -964,7 +965,7 @@
       '<div class="rcap">' + styleTabs() + (reelBadge ? '<span class="rbadge">' + h(reelBadge) + '</span>' : '') + styleCard() +
       (chips ? '<div class="fchips">' + chips + '</div>' : '') +
       (ev.note ? '<div class="rnote">' + h(ev.note) + '</div>' : '') +
-      (user ? '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다 · 좌우로 넘겨 동작 바꾸기</div>'
+      (user ? '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다' + (hasMotionVideo() ? ' · 좌우로 넘겨 동작 바꾸기' : '') + '</div>'
         : '<button type="button" class="rfine gcta" data-act="lgOpen">프로필을 만들면 내 체형 핏 보기와 내 아바타로 입어보기를 쓸 수 있어요 →</button>') + '</div>' + fab() + sh + '</div>';
   }
 
