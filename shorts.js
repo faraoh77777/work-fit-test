@@ -48,7 +48,7 @@
     '<g stroke="var(--accent)" stroke-width="1.6" fill="none" stroke-linecap="round"><path d="M30 76H90" stroke-dasharray="4 3"/><path d="M30 70v12M90 70v12"/></g>' +
     '<g transform="translate(78 92) rotate(8)"><rect width="30" height="20" rx="4" fill="var(--accent)"/><text x="15" y="14.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="sans-serif">M</text></g></svg></div>';
   var HERO = '<div class="herovid"><video src="assets/hero_v4_5cut.mp4" autoplay muted loop playsinline preload="auto" aria-label="FIT 홍보 영상" onerror="this.parentNode.classList.add(&#39;novid&#39;)"></video>' +
-    '<div class="hv-cap">FITON<small>쇼츠에서 본 스타일, 바로 입어보기</small></div><div class="hv-ai">AI 생성 이미지</div>' + HERO_BANNER + '</div>';
+    '<div class="hv-ai">AI 생성 이미지</div>' + HERO_BANNER + '</div>';
 
   /* ---------- 상태 ---------- */
   function blankState() {
