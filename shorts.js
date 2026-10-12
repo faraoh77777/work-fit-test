@@ -744,6 +744,18 @@
     state.motion = (state.motion + (dx < 0 ? 1 : MOTIONS.length - 1)) % MOTIONS.length; save(); render();
   }, { passive: true });
 
+  /* PC: 마우스 드래그도 모바일 스와이프와 똑같이 동작(드래그 뒤 따라오는 클릭은 전체화면 열기로 이어지지 않게 막는다) */
+  var mx = null, mdrag = false;
+  root.addEventListener('mousedown', function (e) { mx = e.button === 0 && e.target.closest('#rmedia') ? e.clientX : null; mdrag = false; });
+  document.addEventListener('mouseup', function (e) {
+    if (mx === null) return;
+    var dx = e.clientX - mx; mx = null;
+    if (Math.abs(dx) < 50 || !hasMotionVideo()) return;
+    mdrag = true;
+    state.motion = (state.motion + (dx < 0 ? 1 : MOTIONS.length - 1)) % MOTIONS.length; save(); render();
+  });
+  root.addEventListener('click', function (e) { if (mdrag) { mdrag = false; e.stopPropagation(); e.preventDefault(); } }, true);
+
   document.addEventListener('toggle', function (e) { if (e.target && e.target.id === 'cfgd') openCfg = e.target.open; }, true);
 
   /* ====================== 전체 화면형(쇼츠형) 화면 ====================== */
