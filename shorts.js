@@ -57,6 +57,9 @@
       /* FITON: 고른 분류 탭·스타일, 화면(기본 모델/내 아바타), 구독 플랜과 이번 달 입어보기 사용 횟수 */
       styleTab: 'today', styleId: null, view: 'model', sub: { plan: 'free', used: 0, month: '' } };
   }
+  /* 둘러보기 중 보던 분류·스타일을 로그인 뒤에도 이어서 보여 준다 */
+  function pickKeep() { return { tab: state.styleTab, id: state.styleId }; }
+  function applyKeep(k) { if (k && k.id) { state.styleTab = k.tab; state.styleId = k.id; state.view = 'model'; } }
   /* ---------- 프로필(이 기기 안 로그인) ---------- */
   function readUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch (e) { return []; } }
   function writeUsers(list) { try { localStorage.setItem(USERS_KEY, JSON.stringify(list)); } catch (e) { /* 저장 불가 */ } }
@@ -214,7 +217,7 @@
   }
   function viewLogin() {
     var users = readUsers(), err = lg.err ? '<div class="warn">' + h(lg.err) + '</div>' : '';
-    var bar = '<div class="bar"><div class="brand">' + (lg.mode !== 'list' ? '<button class="backbtn" data-act="lgBack" aria-label="이전 화면">←</button>' : '') + LOGO + '<div class="wm">FITON<i></i></div>' + (lg.mode === 'list' ? '<button class="newprof" data-act="lgNew">새 프로필 만들기</button>' : '') + '</div></div>';
+    var bar = '<div class="bar"><div class="brand">' + '<button class="backbtn" data-act="' + (lg.mode !== 'list' ? 'lgBack' : 'lgClose') + '" aria-label="' + (lg.mode !== 'list' ? '이전 화면' : '둘러보기로 돌아가기') + '">←</button>' + LOGO + '<div class="wm">FITON<i></i></div>' + (lg.mode === 'list' ? '<button class="newprof" data-act="lgNew">새 프로필 만들기</button>' : '') + '</div></div>';
     var u = lg.id ? userById(lg.id) : null, body, foot;
     if ((lg.mode === 'pin' || lg.mode === 'del') && u) {
       var del = lg.mode === 'del';
@@ -266,7 +269,7 @@
 
   function enterApp() {
     try { localStorage.setItem(CUR_KEY, user.id); } catch (e) {}
-    resetLogin(); lg.fails = 0; lg.until = 0; sheet = null; clean = false; /* 프로필 만들기·로그인 직후에는 '탭하세요' 화면 없이 바로 메뉴가 보이게 */
+    resetLogin(); lg.fails = 0; lg.until = 0; sheet = null; clean = false; lgOpen = false; /* 프로필 만들기·로그인 직후에는 '탭하세요' 화면 없이 바로 메뉴가 보이게 */
     clearUrls(); render(); window.scrollTo(0, 0);
     try { history.replaceState({ s: state.step }, ''); } catch (e) {}
     loadMedia().then(function () { render(); genResume(); });
@@ -281,10 +284,11 @@
     var u = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nick: nick, salt: salt, pin: pinHash(salt, lg.pin), created: Date.now() };
     var first = !users.length;
     users.push(u); writeUsers(users);
+    var keep = pickKeep();
     user = u;
     var info = { gender: lg.gender, height: lg.height, weight: lg.weight }, av = lg.avatar;
     (first ? migrateLegacy() : Promise.resolve(null)).then(function (old) {
-      state = old || blankState();
+      state = old || blankState(); applyKeep(keep);
       state.profile.gender = info.gender;
       if (info.height !== '') state.profile.height = info.height;
       if (info.weight !== '') state.profile.weight = info.weight;
@@ -306,7 +310,8 @@
     var u = userById(lg.id);
     if (!u) { resetLogin(); return render(); }
     if (!checkPin(u)) return;
-    user = u; state = load(); enterApp();
+    var keep = pickKeep();
+    user = u; state = load(); applyKeep(keep); enterApp();
   }
   function lgDelOk() {
     var u = userById(lg.id);
@@ -924,7 +929,7 @@
     return '<h3>설정</h3>' +
       (!E.num(state.profile.height) ? '<div class="rec">먼저 성별·키·몸무게를 입력해 주세요. 치수는 나중에 여기서 언제든 바꿀 수 있어요.</div>' : '') +
       '<div class="card"><div class="ucard">' + av + '<div><b>' + h(user.nick) + ' 님</b><div class="note">이 기기 안에 저장된 프로필</div></div></div>' +
-      '<div class="acts"><button class="btn sm" data-act="logout">프로필 바꾸기</button><button class="btn sm danger" data-act="logout">로그아웃</button></div></div>' +
+      '<div class="acts"><button class="btn sm" data-act="switchUser">프로필 바꾸기</button><button class="btn sm danger" data-act="logout">로그아웃</button></div></div>' +
       subCard() +
       '<div class="sec">내 정보 변경</div>' + profileForm() + mediaCard() +
       '<button class="btn" data-act="open" data-name="cfg">등급 기준 보정</button>' +
@@ -954,17 +959,19 @@
       sh = '<div class="sheetbg' + (half ? ' lite' : '') + '" data-act="closeSheet"></div><div class="sheet' + (half ? ' half' : '') + '" role="dialog" aria-modal="true"><div class="grab"></div>' + sheetInner(ev) + '</div>';
     }
     return '<div class="reel">' + reelMedia() +
-      '<div class="rtop"><div class="rsegs">' + segs + '</div><div class="rbar"><div class="wm">FITON</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
+      '<div class="rtop"><div class="rsegs">' + segs + '</div><div class="rbar"><div class="wm">FITON</div>' + (user ? '<span class="rtag">' + h(user.nick) + ' 님</span>' : '<button type="button" class="rtag" data-act="lgOpen">로그인</button>') + '</div></div>' +
       '<div class="rrail">' + rail + '</div>' +
       '<div class="rcap">' + styleTabs() + (reelBadge ? '<span class="rbadge">' + h(reelBadge) + '</span>' : '') + styleCard() +
       (chips ? '<div class="fchips">' + chips + '</div>' : '') +
       (ev.note ? '<div class="rnote">' + h(ev.note) + '</div>' : '') +
-      '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다 · 좌우로 넘겨 동작 바꾸기</div></div>' + fab() + sh + '</div>';
+      (user ? '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다 · 좌우로 넘겨 동작 바꾸기</div>'
+        : '<button type="button" class="rfine gcta" data-act="lgOpen">프로필을 만들면 내 체형 핏 보기와 내 아바타로 입어보기를 쓸 수 있어요 →</button>') + '</div>' + fab() + sh + '</div>';
   }
 
-  var clean = true; /* 처음 접속하면 영상만 꽉 차게 보이고, 화면을 탭하면 메뉴가 나타난다 */
+  var clean = !!user; /* 로그인 상태로 처음 접속하면 영상만 꽉 차게 보이고, 화면을 탭하면 메뉴가 나타난다. 둘러보기(프로필 없음)는 메뉴가 바로 보인다 */
+  var lgOpen = false; /* 프로필 없이 둘러보는 중에 로그인·프로필 화면을 열었는지 */
   function render() {
-    if (!user) {
+    if (!user && lgOpen) {
       root.className = lg.mode === 'list' ? 'lgfull' : '';
       root.innerHTML = viewLogin();
       loadThumbs();
@@ -972,15 +979,16 @@
       if (f) f.focus();
       return;
     }
+    if (!user) sheet = null; /* 둘러보기에서는 시트를 열지 않는다(내 체형·아바타 기능은 로그인 뒤) */
     if (sheet === 'edit' && !state.draft) sheet = editCat;
-    if (!E.num(state.profile.height) && !onbShown) {
+    if (user && !E.num(state.profile.height) && !onbShown) {
       onbShown = true; sheet = 'settings';
       try { history.pushState({ sh: 'settings' }, ''); } catch (e) {}
     }
     var old = root.querySelector('.sheet'), hs = root.querySelector('.hs');
     var st = old && lastSheet === sheet ? old.scrollTop : 0, sl = hs && lastSheet === sheet ? hs.scrollLeft : 0;
     if (sheet) clean = false;
-    root.className = 'reelmode' + (clean ? ' clean' : '');
+    root.className = 'reelmode' + (clean ? ' clean' : '') + (user ? '' : ' guest');
     root.innerHTML = viewMain();
     lastSheet = sheet;
     var ns = root.querySelector('.sheet'), nh = root.querySelector('.hs');
@@ -995,7 +1003,7 @@
     sheet = name; render();
   }
   window.addEventListener('popstate', function (e) {
-    if (!user) { resetLogin(); render(); return; }
+    if (!user) { lgOpen = !!(e.state && (e.state.lgo || e.state.lg)); resetLogin(); render(); return; }
     sheet = (e.state && e.state.sh) || null;
     if (sheet !== 'edit') state.draft = null;
     render();
@@ -1156,6 +1164,19 @@
     ACT.genTryon({ dataset: { id: main.id } });
   };
 
+  /* 둘러보기(프로필 없이 메인 화면): 보기·넘기기·구매 링크는 되고, 내 체형·아바타 기능을 누르면 프로필 선택 화면으로 간다 */
+  function showLogin() { if (user) return; lgOpen = true; resetLogin(); try { history.pushState({ lgo: 1 }, ''); } catch (e) {} render(); window.scrollTo(0, 0); }
+  function gate(msg) { toast(msg || '프로필을 만들거나 로그인하면 쓸 수 있어요.'); showLogin(); }
+  ACT.lgOpen = function () { showLogin(); };
+  ACT.lgClose = function () { if (history.state && history.state.lgo) history.back(); else { lgOpen = false; resetLogin(); render(); } };
+  ACT.switchUser = function () { ACT.logout(); showLogin(); };
+  var _open = ACT.open, _styleApply = ACT.styleApply, _view = ACT.view, _styleTryon = ACT.styleTryon, _plan = ACT.plan;
+  ACT.open = function (el) { if (!user) return gate(); _open(el); };
+  ACT.styleApply = function () { if (!user) return gate('프로필을 만들면 내 체형으로 이 코디의 핏을 볼 수 있어요.'); _styleApply(); };
+  ACT.view = function (el) { if (!user && el.dataset.v === 'me') return gate('프로필을 만들고 내 아바타에 입혀 보세요.'); _view(el); };
+  ACT.styleTryon = function () { if (!user) return gate('프로필을 만들면 내 아바타로 입어볼 수 있어요.'); _styleTryon(); };
+  ACT.plan = function (el) { if (!user) return gate(); _plan(el); };
+
   /* 이미지 화면을 누르면 전체 화면으로 보기(다시 누르거나 ✕ 로 닫기) */
   function closeFull() { var o = document.getElementById('fsview'); if (o) o.remove(); document.removeEventListener('keydown', fullKey); }
   function fullKey(e) { if (e.key === 'Escape') closeFull(); }
@@ -1170,7 +1191,7 @@
     document.addEventListener('keydown', fullKey);
   }
   root.addEventListener('click', function (e) {
-    if (clean && user) { clean = false; render(); return; }
+    if (clean && (user || !lgOpen)) { clean = false; render(); return; }
     var m = e.target.closest('#rmedia');
     if (m && !e.target.closest('[data-act],button,a')) { openFull(m); return; }
     var el = e.target.closest('[data-act]');
