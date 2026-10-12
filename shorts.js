@@ -1168,7 +1168,7 @@
     document.addEventListener('keydown', fullKey);
   }
   root.addEventListener('click', function (e) {
-    if (clean) { clean = false; render(); return; }
+    if (clean && user) { clean = false; render(); return; }
     var m = e.target.closest('#rmedia');
     if (m && !e.target.closest('[data-act],button,a')) { openFull(m); return; }
     var el = e.target.closest('[data-act]');
