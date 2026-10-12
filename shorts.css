@@ -18,6 +18,10 @@
 .sheet > *{flex-shrink:0}
 .hs .tile .timg{flex:none}
 
+/* 위·아래 겹침 영역(rtop/rcap/rrail)의 빈 곳은 이미지 탭으로 통과시키고, 그 안의 버튼·카드만 받는다 */
+.rtop,.rcap,.rrail{pointer-events:none}
+.rtop>*,.rcap>*,.rrail>*{pointer-events:auto}
+
 /* 이미지 전체 화면 보기 */
 #fsview{position:fixed;inset:0;z-index:9999;background:#000;cursor:zoom-out}
 #fsview .rmedia{position:absolute;inset:0;bottom:0!important}
