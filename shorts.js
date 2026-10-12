@@ -439,11 +439,21 @@
     }
     return null;
   }
+  /* 내 키·몸무게로 BMI 를 구해 기본 모델(BMI 약 20 가정) 대비 가로 비율을 돌려준다. 입력이 없으면 0 */
+  function bodyScale() {
+    var p = state.profile || {}, hh = E.num(p.height), ww = E.num(p.weight);
+    if (!hh || !ww) return 0;
+    var bmi = ww / Math.pow(hh / 100, 2), r = 1 + (bmi - 20) * 0.03;
+    return Math.round(Math.max(0.88, Math.min(1.25, r)) * 100) / 100;
+  }
   function reelMedia() {
     var m = state.motion, inner, badge = '', worn = wornImage(), st = curStyle();
     /* 스타일을 보는 중이고 '기본 모델' 화면이면 무료용 기본 AI 모델 착용 이미지, '내 아바타' 화면이면 내가 입혀 본 모습 */
     if (st && st.modelImage && state.view !== 'me') { inner = '<img class="worn model" alt="' + h(st.title) + ' 기본 모델 착용" src="' + h(st.modelImage) + '">'; badge = '기본 모델 착용 · AI 생성 이미지'; }
     else if (worn) { inner = '<img class="worn" alt="' + h(worn.name) + ' 입은 모습" src="' + worn.url + '">'; badge = CATS[worn.cat] + ' · ' + worn.name + ' 입은 모습'; }
+    else if (st && st.modelImage && user && !urls.videos[m] && !urls.avatar && bodyScale()) { /* [테스트] 내 아바타 = 기본 모델을 내 키·몸무게(BMI) 비율로 가로 조정 */
+      inner = '<img class="worn model" alt="' + h(st.title) + ' 내 체형 비율" style="transform:scaleX(' + bodyScale() + ')" src="' + h(st.modelImage) + '">'; badge = '기본 모델을 내 체형 비율로 조정한 테스트 화면';
+    }
     else if (urls.videos[m]) inner = '<video src="' + urls.videos[m] + '" loop playsinline autoplay muted></video>';
     else if (urls.avatar) { inner = '<img alt="내 아바타" src="' + urls.avatar + '">'; badge = '이 동작의 영상이 없어 이미지를 표시합니다'; }
     else {
