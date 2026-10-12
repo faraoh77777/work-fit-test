@@ -446,8 +446,10 @@
         '<path d="M41 150 L79 150 L82 226 L66 226 L60 170 L54 226 L38 226 Z" fill="rgba(20,20,20,.14)" stroke="var(--ink)" stroke-width="1.4" stroke-linejoin="round"/></svg>';
       badge = '설정에서 아바타를 연결하면 여기에 표시됩니다';
     }
-    return '<div class="rmedia" id="rmedia">' + inner + (badge ? '<span class="rbadge">' + h(badge) + '</span>' : '') + '</div>';
+    reelBadge = badge; /* 배지는 얼굴을 가리지 않게 하단 스타일 카드 바로 위(rcap)에 표시 */
+    return '<div class="rmedia" id="rmedia">' + inner + '</div>';
   }
+  var reelBadge = '';
   var IC = {
     list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
     swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>',
@@ -954,7 +956,7 @@
     return '<div class="reel">' + reelMedia() +
       '<div class="rtop"><div class="rsegs">' + segs + '</div><div class="rbar"><div class="wm">FITON</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
       '<div class="rrail">' + rail + '</div>' +
-      '<div class="rcap">' + styleTabs() + styleCard() +
+      '<div class="rcap">' + styleTabs() + (reelBadge ? '<span class="rbadge">' + h(reelBadge) + '</span>' : '') + styleCard() +
       (chips ? '<div class="fchips">' + chips + '</div>' : '') +
       (ev.note ? '<div class="rnote">' + h(ev.note) + '</div>' : '') +
       '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다 · 좌우로 넘겨 동작 바꾸기</div></div>' + fab() + sh + '</div>';

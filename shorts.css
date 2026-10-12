@@ -79,6 +79,7 @@ body:has(#app.lgfull){padding:0;background:#000}
 /* FITON: 스타일 분류 탭 · 스타일 카드 · 아바타 만들기 플로팅 버튼 (메인 화면 하단 rcap 안, 오른쪽 72px 는 rrail 자리) */
 .hv-cap small{display:block;font-size:13px;font-weight:500;opacity:.92;margin-top:2px}
 .rcap{padding-top:56px}
+.rcap .rbadge{position:static;transform:none;align-self:flex-start;margin:0}
 .stabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .stabs::-webkit-scrollbar{display:none}
 .stabs button{flex:none;border:1px solid rgba(255,255,255,.45);background:rgba(0,0,0,.38);color:#fff;border-radius:99px;padding:5px 12px;font-size:12px;font-weight:600;backdrop-filter:blur(4px)}
