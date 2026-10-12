@@ -956,11 +956,6 @@
     ensureStyle();
     var ev = safeEval();
     var segs = !hasMotionVideo() ? '' : MOTIONS.map(function (x, i) { return '<button data-act="motion" data-i="' + i + '" class="' + (state.motion === i ? 'on' : '') + '" aria-label="' + x + '"><i></i><span>' + x + '</span></button>'; }).join('');
-    var chips = ev.results.map(function (r) {
-      var p = r.current && r.current.primary;
-      return '<button class="fchip" data-act="open" data-name="detail"><span class="k">' + CATS[r.cat] + ' · ' + h(r.chosen) + '</span>' +
-        (p ? '<span class="grade gk-' + p.gradeKey + '">' + p.grade + ' ' + sgn(p.ease) + p.unit + '</span>' : '') + '</button>';
-    }).join('');
     var rail = ['top', 'bottom', 'shoe'].map(function (c) {
       var has = state.sel[c] && item(state.sel[c].id);
       return '<button data-act="open" data-name="' + c + '" class="' + (sheet === c ? 'on' : '') + (has ? ' has' : '') + '" aria-label="' + CATS[c] + '"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">' + GLYPH[c] + '</svg><span>' + CATS[c] + '</span></button>';
@@ -977,10 +972,7 @@
       '<div class="rtop"><div class="rsegs">' + segs + '</div><div class="rbar"><div class="wm">FITON</div>' + (user ? '<span class="rtag">' + h(user.nick) + ' 님</span>' : '<button type="button" class="rtag" data-act="lgOpen">로그인</button>') + '</div></div>' +
       '<div class="rrail">' + rail + '</div>' +
       '<div class="rcap">' + styleTabs() + (reelBadge ? '<span class="rbadge">' + h(reelBadge) + '</span>' : '') + styleCard() +
-      (chips ? '<div class="fchips">' + chips + '</div>' : '') +
-      (ev.note ? '<div class="rnote">' + h(ev.note) + '</div>' : '') +
-      (user ? '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다' + (hasMotionVideo() ? ' · 좌우로 넘겨 동작 바꾸기' : '') + '</div>'
-        : '<button type="button" class="rfine gcta" data-act="lgOpen">프로필을 만들면 내 체형 핏 보기와 내 아바타로 입어보기를 쓸 수 있어요 →</button>') + '</div>' + fab() + sh + '</div>';
+      '</div>' + fab() + sh + '</div>';
   }
 
   var clean = !!user; /* 로그인 상태로 처음 접속하면 영상만 꽉 차게 보이고, 화면을 탭하면 메뉴가 나타난다. 둘러보기(프로필 없음)는 메뉴가 바로 보인다 */
@@ -1102,13 +1094,13 @@
     return u ? '<a class="sbtn ' + shop + '" href="' + h(u) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>'
       : '<button type="button" class="sbtn off" data-act="noLink">' + label + '</button>';
   }
-  /* 코디 카드 안 사이즈 버튼: 상의(M)·하의(S)·신발(240) — 누르면 그 옷의 사이즈가 순서대로 바뀌고 핏 결과(타이트/여유)가 바로 갱신된다. 내 신체 치수는 그대로 */
-  function sizeRow() {
-    var res = safeEval().results || [];
-    var b = res.filter(function (r) { return r.all && r.all.length > 1 && r.chosen; }).map(function (r) {
-      return '<button type="button" data-act="cycleSize" data-cat="' + r.cat + '" aria-label="' + CATS[r.cat] + ' 사이즈 바꾸기">' + CATS[r.cat] + '(' + h(r.chosen) + ')' + (r.chosen === r.recommended ? ' ★' : '') + '</button>';
+  /* 코디 카드 설명 문구의 옷 이름 옆에 사이즈 버튼: 상의(M)·하의(S)·신발(240) — 누르면 그 옷의 사이즈가 순서대로 바뀌고 핏 결과가 바로 갱신된다. 내 신체 치수는 그대로 */
+  function pointsHtml(st) {
+    var pts = st.points || '', k = pts.indexOf('. '), head = k < 0 ? pts : pts.slice(0, k), tail = k < 0 ? '' : pts.slice(k + 2);
+    var b = safeEval().results.filter(function (r) { return r.all && r.all.length > 1 && r.chosen; }).map(function (r) {
+      return '<button type="button" class="ssz" data-act="cycleSize" data-cat="' + r.cat + '" aria-label="' + CATS[r.cat] + ' 사이즈 바꾸기">' + CATS[r.cat] + '(' + h(r.chosen) + ')' + (r.chosen === r.recommended ? '★' : '') + '</button>';
     }).join('');
-    return b ? '<div class="ssize">' + b + '</div>' : '';
+    return h(head) + (b ? ' ' + b : '') + (tail ? '<br>' + h(tail) : '');
   }
   function styleCard() {
     var st = curStyle();
@@ -1118,8 +1110,7 @@
       '<div class="sh"><button type="button" data-act="styleNext" data-d="-1" aria-label="이전 스타일"' + (n < 2 ? ' disabled' : '') + '>‹</button>' +
       '<div class="st"><b>' + h(st.title) + '</b><span>' + h(st.priceText || '') + (n > 1 ? ' · ' + (i + 1) + '/' + n : '') + '</span></div>' +
       '<button type="button" data-act="styleNext" data-d="1" aria-label="다음 스타일"' + (n < 2 ? ' disabled' : '') + '>›</button></div>' +
-      '<div class="sp">' + h(st.points || '') + '</div>' +
-      sizeRow() +
+      '<div class="sp">' + pointsHtml(st) + '</div>' +
       '<div class="sview"><button type="button" data-act="view" data-v="model" class="' + (me ? '' : 'on') + '">기본 모델</button>' +
       '<button type="button" data-act="view" data-v="me" class="' + (me ? 'on' : '') + '">내 아바타</button>' +
       (styleApplied(st) ? '<span class="sapplied">코디 적용됨</span>' : '<button type="button" class="sapply" data-act="styleApply">이 코디로 핏 보기</button>') + '</div>' +
