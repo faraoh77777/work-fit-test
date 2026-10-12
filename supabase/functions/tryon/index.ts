@@ -12,6 +12,7 @@ const DEV_LIMIT = Number(Deno.env.get("DAILY_LIMIT") ?? "5");
 const GLOBAL_LIMIT = Number(Deno.env.get("GLOBAL_DAILY_LIMIT") ?? "100");
 const ALLOWED = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://faraoh77777.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",");
 const MAX_B64 = 7_000_000; // 상품 사진 base64 길이 상한(약 5MB)
+const MAX_AV_B64 = 4_000_000; // 내 아바타 base64 길이 상한(약 3MB)
 
 const PROMPTS: Record<string, string> = {
   top: "Image 1 is a full-body photo of a woman standing. Image 2 is a product photo of a top. Edit image 1 so she wears exactly the top shown in image 2 (same color, collar, pattern, sleeve length and fit) instead of her current top.",
@@ -81,10 +82,13 @@ function findImageUrl(o: unknown): string {
   return "";
 }
 /* 접수: 사진 두 장을 올리고 편집 요청만 보낸 뒤 번호(taskId)를 돌려준다. 오래 붙잡지 않는다 */
-async function submitTopview(male: boolean, cat: string, garmentBytes: Uint8Array, garmentExt: string, garmentMime: string) {
-  const av = await fetch(male ? AVATAR_URL_MALE : AVATAR_URL);
-  if (!av.ok) throw new Error("avatar");
-  const avBytes = new Uint8Array(await av.arrayBuffer());
+async function submitTopview(male: boolean, cat: string, garmentBytes: Uint8Array, garmentExt: string, garmentMime: string, myAvatar?: Uint8Array) {
+  let avBytes = myAvatar;
+  if (!avBytes) { // 내 아바타가 없으면 기본 캐릭터
+    const av = await fetch(male ? AVATAR_URL_MALE : AVATAR_URL);
+    if (!av.ok) throw new Error("avatar");
+    avBytes = new Uint8Array(await av.arrayBuffer());
+  }
   const [avId, gId] = await Promise.all([tvUpload(avBytes, "jpg", "image/jpeg"), tvUpload(garmentBytes, garmentExt, garmentMime)]);
   const sub = await tvPost("/v1/common_task/image_edit/task/submit", {
     model: TV_MODEL, prompt: toMale(PROMPTS[cat] + KEEP, male), aspectRatio: "9:16", resolution: "1K", generateCount: 1, inputImageFileIds: [avId, gId],
@@ -114,7 +118,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json(req, 405, { error: "POST 만 가능합니다." });
   if (!(TV_UID && TV_KEY)) return json(req, 500, { error: "서버에 이미지 생성 키가 설정되지 않았습니다." });
 
-  let body: { action?: string; taskId?: string; device?: string; cat?: string; garment?: string; gender?: string };
+  let body: { action?: string; taskId?: string; device?: string; cat?: string; garment?: string; gender?: string; avatar?: string };
   try { body = await req.json(); } catch { return json(req, 400, { error: "요청 형식이 올바르지 않습니다." }); }
   if (body.action === "status") {
     const tid = String(body.taskId ?? "");
@@ -131,6 +135,10 @@ Deno.serve(async (req) => {
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(device)) return json(req, 400, { error: "기기 식별자가 올바르지 않습니다." });
   if (!PROMPTS[cat]) return json(req, 400, { error: "옷 종류가 올바르지 않습니다." });
   if (!garment || garment.length > MAX_B64) return json(req, 400, { error: "상품 사진이 없거나 너무 큽니다." });
+  let myAv = String(body.avatar ?? "");
+  const am = myAv.match(/^data:image\/jpeg;base64,(.*)$/);
+  if (am) myAv = am[1];
+  if (myAv && (!am || myAv.length > MAX_AV_B64)) return json(req, 400, { error: "아바타 이미지가 올바르지 않거나 너무 큽니다." });
 
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   // 30일이 지난 이용 기록은 지운다(개인정보처리방침의 보관 기간)
@@ -141,7 +149,7 @@ Deno.serve(async (req) => {
 
   try {
     const bytes = b64ToBytes(garment);
-    const taskId = await submitTopview(body.gender === "male", cat, bytes, ext, mime);
+    const taskId = await submitTopview(body.gender === "male", cat, bytes, ext, mime, myAv ? b64ToBytes(myAv) : undefined);
     return json(req, 200, { taskId });
   } catch (e) {
     console.error("submit failed:", (e as Error).message);

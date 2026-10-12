@@ -831,6 +831,13 @@
   }
   function isMale() { return !!(state && state.profile && state.profile.gender === 'male'); }
   function genEnabled() { var c = window.TRYON_CFG; return !!(c && c.enabled && c.url && c.anon); }
+  /* 내 아바타 이미지를 입히기 요청에 같이 보낼 JPEG data URL로 줄인다(없으면 null → 서버가 기본 캐릭터 사용) */
+  function avatarData() {
+    if (!urls.avatar) return Promise.resolve(null);
+    return fetch(urls.avatar).then(function (r) { return r.blob(); }).then(function (b) { return shrink(b, 1280, 0.88); }).then(function (b) {
+      return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(fr.result); }; fr.onerror = rej; fr.readAsDataURL(b); });
+    }).catch(function () { return null; });
+  }
   function genCall(body) {
     var c = window.TRYON_CFG;
     return fetch(c.url.replace(/\/$/, '') + '/functions/v1/tryon', {
@@ -897,11 +904,19 @@
     try { first = !localStorage.getItem('fit-gen-ok'); } catch (e) { first = true; }
     if (first && !confirm('이 옷의 상품 사진이 AI 이미지 생성 서버(Supabase·TopView)로 전송되어 입은 모습을 만듭니다. 내 얼굴 사진과 몸 정보는 전송되지 않아요. 만들어진 이미지는 AI가 생성한 것이라 실제 상품과 다를 수 있고, 플랜별 월 횟수와 하루 이용 한도가 있습니다. 계속할까요?')) return;
     if (urls.tryon[it.id] && !confirm('이미 만든 입은 모습이 있습니다. 다시 만들면 입어보기 횟수가 한 번 더 쓰입니다. (남은 ' + tryLeft() + '회) 계속할까요?')) return;
+    if (urls.avatar) {
+      var avFirst = false;
+      try { avFirst = !localStorage.getItem('fit-gen-av-ok'); } catch (e) { avFirst = true; }
+      if (avFirst && !confirm('내 아바타 이미지도 이 옷을 입히는 동안 AI 이미지 생성 서버(Supabase·TopView)로 전송됩니다. 서버에는 저장하지 않고 입히기 요청에만 쓰입니다. 계속할까요?')) return;
+      try { localStorage.setItem('fit-gen-av-ok', '1'); } catch (e) {}
+    }
     try { localStorage.setItem('fit-gen-ok', '1'); } catch (e) {}
     var id = it.id;
     genPending = id; sheet = null; state.draft = null; render(); waitStart(it.name);
-    photoData(it).then(function (g) {
-      return genCall({ device: deviceId(), cat: it.cat, garment: g, gender: isMale() ? 'male' : 'female' });
+    Promise.all([photoData(it), avatarData()]).then(function (a) {
+      var body = { device: deviceId(), cat: it.cat, garment: a[0], gender: isMale() ? 'male' : 'female' };
+      if (a[1]) body.avatar = a[1];
+      return genCall(body);
     }).then(function (res) {
       if (!res.ok || !res.j.taskId) throw new Error((res.j && res.j.error) || '요청을 접수하지 못했습니다.');
       tryUse(); /* 서버가 접수한 뒤에만 이번 달 횟수를 뺀다(거절되면 차감 없음) */
