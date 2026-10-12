@@ -439,20 +439,49 @@
     }
     return null;
   }
-  /* 내 키·몸무게로 BMI 를 구해 기본 모델(BMI 약 20 가정) 대비 가로 비율을 돌려준다. 입력이 없으면 0 */
-  function bodyScale() {
-    var p = state.profile || {}, hh = E.num(p.height), ww = E.num(p.weight);
-    if (!hh || !ww) return 0;
-    var bmi = ww / Math.pow(hh / 100, 2), r = 1 + (bmi - 20) * 0.03;
-    return Math.round(Math.max(0.88, Math.min(1.25, r)) * 100) / 100;
+  /* [테스트] 내 신체 사이즈(어깨·가슴·허리·엉덩이·허벅지)로 기본 모델 사진의 몸 부위별 가로 폭을 조정한 이미지를 만든다.
+     같은 성별·키 165·몸무게 50 의 추정 치수를 기준(=1.0)으로 비율을 구하고, 얼굴·발 쪽은 거의 그대로 둔다. */
+  var BW = { cache: {}, busy: {} };
+  function bodyRatios() {
+    var p = state.profile || {};
+    if (!E.num(p.height)) return null;
+    var me = E.bodyOf(p).vals, ref = E.bodyOf({ height: 165, weight: 50, gender: p.gender }).vals;
+    function r(k) { var v = me[k] / ref[k]; return isFinite(v) ? Math.round(Math.max(0.8, Math.min(1.3, v)) * 100) / 100 : 1; }
+    return { sh: r('shoulder'), ch: r('chest'), wa: r('waist'), hi: r('hip'), th: r('thigh') };
+  }
+  function warpedModel(src) {
+    var q = bodyRatios();
+    if (!q) return null;
+    var key = src + '|' + [q.sh, q.ch, q.wa, q.hi, q.th].join(',');
+    if (BW.cache[key]) return BW.cache[key];
+    if (BW.busy[key]) return null;
+    BW.busy[key] = 1;
+    var im = new Image();
+    im.onload = function () {
+      var w = im.naturalWidth, hgt = im.naturalHeight, cv = document.createElement('canvas'); cv.width = w; cv.height = hgt;
+      var cx = cv.getContext('2d');
+      var P = [[0, 1], [0.17, 1], [0.22, q.sh], [0.29, q.ch], [0.40, q.wa], [0.50, q.hi], [0.58, q.th], [0.72, 1 + (q.th - 1) * 0.4], [0.9, 1], [1, 1]];
+      function sc(f) { for (var i = 1; i < P.length; i++) if (f <= P[i][0]) { var a = P[i - 1], b = P[i], t = (f - a[0]) / (b[0] - a[0] || 1); return a[1] + (b[1] - a[1]) * t; } return 1; }
+      for (var y = 0; y < hgt; y += 2) {
+        var s = sc(y / hgt), nw = w * s, x0 = (w - nw) / 2;
+        cx.drawImage(im, 0, y, w, 2, x0, y, nw, 2);
+        if (x0 > 0) { cx.drawImage(im, 0, y, 3, 2, 0, y, x0 + 1, 2); cx.drawImage(im, w - 3, y, 3, 2, w - x0 - 1, y, x0 + 1, 2); }
+      }
+      try { BW.cache[key] = cv.toDataURL('image/jpeg', 0.9); } catch (e) { BW.cache[key] = src; }
+      render();
+    };
+    im.onerror = function () { BW.cache[key] = src; render(); };
+    im.src = src;
+    return null;
   }
   function reelMedia() {
     var m = state.motion, inner, badge = '', worn = wornImage(), st = curStyle();
     /* 스타일을 보는 중이고 '기본 모델' 화면이면 무료용 기본 AI 모델 착용 이미지, '내 아바타' 화면이면 내가 입혀 본 모습 */
     if (st && st.modelImage && state.view !== 'me') { inner = '<img class="worn model" alt="' + h(st.title) + ' 기본 모델 착용" src="' + h(st.modelImage) + '">'; badge = '기본 모델 착용 · AI 생성 이미지'; }
     else if (worn) { inner = '<img class="worn" alt="' + h(worn.name) + ' 입은 모습" src="' + worn.url + '">'; badge = CATS[worn.cat] + ' · ' + worn.name + ' 입은 모습'; }
-    else if (st && st.modelImage && user && !urls.videos[m] && !urls.avatar && bodyScale()) { /* [테스트] 내 아바타 = 기본 모델을 내 키·몸무게(BMI) 비율로 가로 조정 */
-      inner = '<img class="worn model" alt="' + h(st.title) + ' 내 체형 비율" style="transform:scaleX(' + bodyScale() + ')" src="' + h(st.modelImage) + '">'; badge = '기본 모델을 내 체형 비율로 조정한 테스트 화면';
+    else if (st && st.modelImage && user && !urls.videos[m] && !urls.avatar && bodyRatios()) { /* [테스트] 내 아바타 = 기본 모델을 내 신체 사이즈로 부위별 조정 */
+      var wu = warpedModel(st.modelImage);
+      inner = '<img class="worn model" alt="' + h(st.title) + ' 내 체형" src="' + h(wu || st.modelImage) + '">'; badge = wu ? '기본 모델을 내 신체 사이즈로 조정한 테스트 화면' : '내 체형으로 조정하는 중…';
     }
     else if (urls.videos[m]) inner = '<video src="' + urls.videos[m] + '" loop playsinline autoplay muted></video>';
     else if (urls.avatar) { inner = '<img alt="내 아바타" src="' + urls.avatar + '">'; badge = '이 동작의 영상이 없어 이미지를 표시합니다'; }
