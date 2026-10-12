@@ -39,6 +39,7 @@
   }
   var BASE_CFG = JSON.parse(JSON.stringify(window.FIT_CONFIG));
   var E = window.FitEngine;
+  var FD = window.FITON || { slogan: '', tabs: [], plans: { free: { name: '무료', limit: 3, price: '', features: [] } }, styles: [] }; /* styles-data.js */
 
   var LOGO = '<svg viewBox="0 0 34 34" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 12v-1.5a3 3 0 1 0-3-3"/><path d="M17 12L3.5 22.5Q2 24 4 24.5H30Q32 24 30.5 22.5Z"/></svg>';
   var HERO_BANNER = '<div class="hero"><div class="tx"><span class="pill">FIT CHECK</span><h2>입기 전에,<br>내 사이즈로 먼저 입어보세요</h2><p>쇼핑몰에서 고른 상의, 하의, 신발이 내 몸에 맞는지 실측표로 확인해 드려요.</p></div>' +
@@ -47,12 +48,14 @@
     '<g stroke="var(--accent)" stroke-width="1.6" fill="none" stroke-linecap="round"><path d="M30 76H90" stroke-dasharray="4 3"/><path d="M30 70v12M90 70v12"/></g>' +
     '<g transform="translate(78 92) rotate(8)"><rect width="30" height="20" rx="4" fill="var(--accent)"/><text x="15" y="14.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="sans-serif">M</text></g></svg></div>';
   var HERO = '<div class="herovid"><video src="assets/hero_v4_5cut.mp4" autoplay muted loop playsinline preload="auto" aria-label="FIT 홍보 영상" onerror="this.parentNode.classList.add(&#39;novid&#39;)"></video>' +
-    '<div class="hv-cap">FIT 하면 이렇게 보여요</div><div class="hv-ai">AI 생성 이미지</div>' + HERO_BANNER + '</div>';
+    '<div class="hv-cap">FITON<small>쇼츠에서 본 스타일, 바로 입어보기</small></div><div class="hv-ai">AI 생성 이미지</div>' + HERO_BANNER + '</div>';
 
   /* ---------- 상태 ---------- */
   function blankState() {
     return { step: 'profile', profile: { gender: 'male', height: '', weight: '', pref: 'fit', m: {} },
-      closet: [], sel: {}, draft: null, motion: 0, cfg: null, feel: {}, seq: 1 };
+      closet: [], sel: {}, draft: null, motion: 0, cfg: null, feel: {}, seq: 1,
+      /* FITON: 고른 분류 탭·스타일, 화면(기본 모델/내 아바타), 구독 플랜과 이번 달 입어보기 사용 횟수 */
+      styleTab: 'today', styleId: null, view: 'model', sub: { plan: 'free', used: 0, month: '' } };
   }
   /* ---------- 프로필(이 기기 안 로그인) ---------- */
   function readUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch (e) { return []; } }
@@ -211,7 +214,7 @@
   }
   function viewLogin() {
     var users = readUsers(), err = lg.err ? '<div class="warn">' + h(lg.err) + '</div>' : '';
-    var bar = '<div class="bar"><div class="brand">' + LOGO + '<div class="wm">AI FIT<i></i></div><span class="mini">의류 핏 체크</span></div></div>';
+    var bar = '<div class="bar"><div class="brand">' + (lg.mode !== 'list' ? '<button class="backbtn" data-act="lgBack" aria-label="이전 화면">←</button>' : '') + LOGO + '<div class="wm">FITON<i></i></div>' + (lg.mode === 'list' ? '<button class="newprof" data-act="lgNew">새 프로필 만들기</button>' : '') + '</div></div>';
     var u = lg.id ? userById(lg.id) : null, body, foot;
     if ((lg.mode === 'pin' || lg.mode === 'del') && u) {
       var del = lg.mode === 'del';
@@ -240,12 +243,15 @@
         (users.length ? '<div class="ulist">' + users.map(function (x) {
           return '<div class="urow"><button class="ugo" data-act="lgPick" data-id="' + h(x.id) + '">' + avatarDot(x) + '<b>' + h(x.nick) + '</b></button>' +
             '<button class="btn sm danger" data-act="lgDel" data-id="' + h(x.id) + '" aria-label="' + h(x.nick) + ' 삭제">삭제</button></div>';
-        }).join('') + '</div>' : '<div class="note">닉네임과 PIN으로 프로필을 만들면, 입력한 내 정보와 캐릭터를 다음에 그대로 불러옵니다.</div>') +
+        }).join('') + '</div>' : '<div class="note">닉네임과 PIN으로 프로필을 만들면, 입력한 내 정보와 아바타를 다음에 그대로 불러옵니다.</div>') +
+        '<div class="note">쇼츠에서 본 스타일 보기 → 내 아바타로 입어보기 → 쿠팡·네이버에서 바로 구매. 핏온(FITON)은 보는 건 무료, 내게 입혀 보는 건 구독이에요.</div>' +
         '<div class="note">프로필과 데이터는 이 기기(브라우저) 안에만 저장되며 서버로 보내지 않습니다. PIN은 같은 기기를 함께 쓸 때 서로 구분하는 잠금입니다.</div>';
-      foot = '<button class="btn p" data-act="lgNew">새 프로필 만들기</button>';
+      foot = '';
     }
-    return bar + '<div class="body">' + body + '</div><div class="foot">' + foot + '</div>';
+    return bar + '<div class="body">' + body + '</div>' + (foot ? '<div class="foot">' + foot + '</div>' : '');
   }
+  /* 프로필 화면(새 프로필·PIN)으로 갈 때 브라우저 기록을 남겨서 뒤로가기가 처음 화면으로 돌아오게 한다 */
+  function lgGo(fn) { fn(); try { history.pushState({ lg: 1 }, ''); } catch (e) {} render(); }
   function lgErr(msg) { lg.err = msg; render(); }
 
   /* 로그인 도입 전 단일 사용자 데이터를 첫 프로필로 옮긴다 */
@@ -260,10 +266,10 @@
 
   function enterApp() {
     try { localStorage.setItem(CUR_KEY, user.id); } catch (e) {}
-    resetLogin(); lg.fails = 0; lg.until = 0; sheet = null;
+    resetLogin(); lg.fails = 0; lg.until = 0; sheet = null; clean = false; /* 프로필 만들기·로그인 직후에는 '탭하세요' 화면 없이 바로 메뉴가 보이게 */
     clearUrls(); render(); window.scrollTo(0, 0);
     try { history.replaceState({ s: state.step }, ''); } catch (e) {}
-    loadMedia().then(render);
+    loadMedia().then(function () { render(); genResume(); });
   }
   function lgCreate() {
     var users = readUsers(), nick = String(lg.nick || '').trim();
@@ -332,9 +338,10 @@
         '<span id="tag-' + f[0] + '">' + (v !== '' ? srcTag('real') : (est != null ? srcTag('est') : '')) + '</span></div>';
     }).join('');
     return seg('profile.gender', p.gender, [['male', '남성'], ['female', '여성']]) +
-      '<div class="row2"><label class="f">키<div class="inwrap"><input type="number" inputmode="decimal" id="in-height" data-path="profile.height" data-hint="1" value="' + h(p.height) + '"><small>cm</small></div></label>' +
-      '<label class="f">몸무게<div class="inwrap"><input type="number" inputmode="decimal" id="in-weight" data-path="profile.weight" data-hint="1" value="' + h(p.weight) + '"><small>kg</small></div></label></div>' +
-      '<div class="sec">내 치수 (비워 두면 키·몸무게로 추정)</div><div>' + rows + '</div>' +
+      '<div class="sec">내 신체 사이즈 11가지 (치수는 비워 두면 키·몸무게로 추정)</div><div>' +
+      '<div class="mrow"><span>키</span><div class="inwrap"><input type="number" inputmode="decimal" id="in-height" data-path="profile.height" data-hint="1" value="' + h(p.height) + '" aria-label="키"><small>cm</small></div><span></span></div>' +
+      '<div class="mrow"><span>몸무게</span><div class="inwrap"><input type="number" inputmode="decimal" id="in-weight" data-path="profile.weight" data-hint="1" value="' + h(p.weight) + '" aria-label="몸무게"><small>kg</small></div><span></span></div>' +
+      rows + '</div>' +
       '<div class="note">추정식은 초안입니다. 실측값을 입력할수록 정확해집니다.</div>' +
       '<div class="sec">선호 핏</div>' + seg('profile.pref', p.pref, PREFS);
   }
@@ -427,8 +434,10 @@
     return null;
   }
   function reelMedia() {
-    var m = state.motion, inner, badge = '', worn = wornImage();
-    if (worn) { inner = '<img class="worn" alt="' + h(worn.name) + ' 입은 모습" src="' + worn.url + '">'; badge = CATS[worn.cat] + ' · ' + worn.name + ' 입은 모습'; }
+    var m = state.motion, inner, badge = '', worn = wornImage(), st = curStyle();
+    /* 스타일을 보는 중이고 '기본 모델' 화면이면 무료용 기본 AI 모델 착용 이미지, '내 아바타' 화면이면 내가 입혀 본 모습 */
+    if (st && st.modelImage && state.view !== 'me') { inner = '<img class="worn model" alt="' + h(st.title) + ' 기본 모델 착용" src="' + h(st.modelImage) + '">'; badge = '기본 모델 착용 · AI 생성 이미지'; }
+    else if (worn) { inner = '<img class="worn" alt="' + h(worn.name) + ' 입은 모습" src="' + worn.url + '">'; badge = CATS[worn.cat] + ' · ' + worn.name + ' 입은 모습'; }
     else if (urls.videos[m]) inner = '<video src="' + urls.videos[m] + '" loop playsinline autoplay muted></video>';
     else if (urls.avatar) { inner = '<img alt="내 아바타" src="' + urls.avatar + '">'; badge = '이 동작의 영상이 없어 이미지를 표시합니다'; }
     else {
@@ -444,7 +453,8 @@
     swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>',
     tune: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
-    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>'
+    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+    avatar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="4"/><path d="M3 21v-1a7 7 0 0 1 11-5.7"/><path d="M19 15v6M16 18h6"/></svg>'
   };
 
   function safeUrl(u) {
@@ -557,10 +567,10 @@
   }
 
   var ACT = {
-    lgNew: function () { resetLogin('new'); render(); },
-    lgPick: function (el) { resetLogin('pin', el.dataset.id); render(); },
-    lgDel: function (el) { resetLogin('del', el.dataset.id); render(); },
-    lgBack: function () { resetLogin(); render(); },
+    lgNew: function () { lgGo(function () { resetLogin('new'); }); },
+    lgPick: function (el) { lgGo(function () { resetLogin('pin', el.dataset.id); }); },
+    lgDel: function (el) { lgGo(function () { resetLogin('del', el.dataset.id); }); },
+    lgBack: function () { if (history.state && history.state.lg) history.back(); else { resetLogin(); render(); } },
     lgSet: function (el) { lg[el.dataset.k] = el.dataset.v; render(); },
     lgCreate: lgCreate,
     lgLogin: lgLogin,
@@ -749,9 +759,139 @@
       '<div class="tname">' + h(it.name) + '</div>' + (priceText(it.price) ? '<div class="price">' + priceText(it.price) + '</div>' : '') + '<div class="sub">' + meta + '</div><div class="chips">' + chips + '</div>' + tryonRow(it) + buyLink(it, 'buy') + '</div>';
   }
 
+  /* ---- 입혀 보기(AI): Supabase Edge Function 이 기본 캐릭터 + 상품 사진으로 입은 모습을 만든다 ---- */
+  var genPending = null;                       /* 만드는 중인 옷 id (한 번에 하나만) */
+  var GEN_KEY = function () { return 'fit-gen-pending:' + (user ? user.id : ''); };
+  function deviceId() {
+    try {
+      var d = localStorage.getItem('fit-device');
+      if (!d) { d = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); localStorage.setItem('fit-device', d); }
+      return d;
+    } catch (e) { return 'tmp' + Math.random().toString(16).slice(2) + Date.now().toString(16); }
+  }
+  function isMale() { return !!(state && state.profile && state.profile.gender === 'male'); }
+  function genEnabled() { var c = window.TRYON_CFG; return !!(c && c.enabled && c.url && c.anon); }
+  function genCall(body) {
+    var c = window.TRYON_CFG;
+    return fetch(c.url.replace(/\/$/, '') + '/functions/v1/tryon', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', apikey: c.anon, Authorization: 'Bearer ' + c.anon }, body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
+  }
+  function toast(msg) {
+    var el = document.createElement('div');
+    el.className = 'toast'; el.textContent = msg; document.body.appendChild(el);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 4500);
+  }
+  function genButton(it) {
+    if (!genEnabled() || !it.photo) return '';
+    if (genPending === it.id) return '<button class="btn sm" disabled>만드는 중… 다른 걸 해도 돼요</button>';
+    return '<button class="btn sm p" data-act="genTryon" data-id="' + it.id + '"' + (genPending ? ' disabled' : '') + '>' + (urls.tryon[it.id] ? 'AI로 다시 입히기' : 'AI로 입혀 보기') + '</button>';
+  }
+  function genFinish(id, ok, msg) {
+    genPending = null;
+    try { localStorage.removeItem(GEN_KEY()); } catch (e) {}
+    if (ok) {
+      var it0 = item(id);
+      if (it0) { var cur0 = state.sel[it0.cat]; state.sel[it0.cat] = { id: id, size: cur0 && cur0.id === id ? cur0.size : null }; }
+      state.view = 'me'; save(); /* 완성되면 '내 아바타' 화면으로 */
+    }
+    waitEnd(ok);
+    if (msg) toast(msg);
+    render();
+  }
+  /* 4초마다 결과를 확인한다. 화면을 닫았다 열어도 이어서 확인한다 */
+  function genPoll(id, taskId, t0) {
+    if (!user || genPending !== id) return;
+    if (Date.now() - t0 > 6 * 60 * 1000) { genFinish(id, false, '입은 모습을 만드는 데 너무 오래 걸려 중단했어요. 나중에 다시 시도해 주세요.'); return; }
+    genCall({ action: 'status', taskId: taskId }).then(function (res) {
+      if (!res.ok) throw new Error('retry');
+      var j = res.j;
+      if (j.status === 'success' && j.image) {
+        var bin = atob(j.image), u = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+        var blob = new Blob([u], { type: j.mime || 'image/png' });
+        return blobPut('tryon:' + id, blob).then(function () {
+          if (urls.tryon[id]) URL.revokeObjectURL(urls.tryon[id]);
+          urls.tryon[id] = URL.createObjectURL(blob);
+          state.aiGen = state.aiGen || {}; state.aiGen[id] = true; save();
+          var it = item(id);
+          genFinish(id, true, (it ? it.name : '옷') + ' 입은 모습이 완성됐어요!');
+        });
+      }
+      if (j.status === 'failed') { genFinish(id, false, '입은 모습을 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.'); return; }
+      setTimeout(function () { genPoll(id, taskId, t0); }, 4000);
+    }).catch(function () { setTimeout(function () { genPoll(id, taskId, t0); }, 6000); });
+  }
+  /* 상품 사진은 서버가 data URL(base64)만 받는다. 스타일 데이터의 사진은 파일 경로라 먼저 읽어서 바꾼다 */
+  function photoData(it) {
+    var p = String(it.photo || '');
+    if (/^data:/i.test(p)) return Promise.resolve(p);
+    return fetch(p).then(function (r) { if (!r.ok) throw new Error('상품 사진을 불러오지 못했습니다.'); return r.blob(); }).then(blobToDataUrl);
+  }
+  ACT.genTryon = function (el) {
+    var it = item(el.dataset.id);
+    if (!it || genPending || !genEnabled()) return;
+    if (!it.photo) { alert('먼저 이 옷의 상품 사진을 올려 주세요. (수정 → 상품 사진)'); return; }
+    if (tryLeft() <= 0) { toast('이번 달 입어보기 횟수를 다 썼어요. 플랜을 확인해 주세요.'); openSheet('plan'); return; }
+    var first = false;
+    try { first = !localStorage.getItem('fit-gen-ok'); } catch (e) { first = true; }
+    if (first && !confirm('이 옷의 상품 사진이 AI 이미지 생성 서버(Supabase·TopView)로 전송되어 입은 모습을 만듭니다. 내 얼굴 사진과 몸 정보는 전송되지 않아요. 만들어진 이미지는 AI가 생성한 것이라 실제 상품과 다를 수 있고, 플랜별 월 횟수와 하루 이용 한도가 있습니다. 계속할까요?')) return;
+    if (urls.tryon[it.id] && !confirm('이미 만든 입은 모습이 있습니다. 다시 만들면 입어보기 횟수가 한 번 더 쓰입니다. (남은 ' + tryLeft() + '회) 계속할까요?')) return;
+    try { localStorage.setItem('fit-gen-ok', '1'); } catch (e) {}
+    var id = it.id;
+    genPending = id; sheet = null; state.draft = null; render(); waitStart(it.name);
+    photoData(it).then(function (g) {
+      return genCall({ device: deviceId(), cat: it.cat, garment: g, gender: isMale() ? 'male' : 'female' });
+    }).then(function (res) {
+      if (!res.ok || !res.j.taskId) throw new Error((res.j && res.j.error) || '요청을 접수하지 못했습니다.');
+      tryUse(); /* 서버가 접수한 뒤에만 이번 달 횟수를 뺀다(거절되면 차감 없음) */
+      var t0 = Date.now();
+      try { localStorage.setItem(GEN_KEY(), JSON.stringify({ id: id, taskId: res.j.taskId, t0: t0 })); } catch (e) {}
+      genPoll(id, res.j.taskId, t0);
+    }).catch(function (err) { genFinish(id, false, (err && err.message) || '요청을 접수하지 못했습니다.'); });
+  };
+  function genResume() {
+    if (!user || genPending || !genEnabled()) return;
+    try {
+      var p = JSON.parse(localStorage.getItem(GEN_KEY()) || 'null');
+      if (p && p.id && p.taskId && item(p.id) && Date.now() - p.t0 < 6 * 60 * 1000) { genPending = p.id; render(); waitStart((item(p.id) || {}).name || ''); genPoll(p.id, p.taskId, p.t0); }
+      else if (p) localStorage.removeItem(GEN_KEY());
+    } catch (e) {}
+  }
+  /* ---- 피팅룸 대기 연출: 커튼이 닫히고 문구가 바뀌며 진행 막대가 찬다. 닫고 다른 옷을 봐도 되고, 끝나면 커튼이 열린다 ---- */
+  var WAIT_MSGS = ['치수 확인 중', '옷을 고르는 중', '피팅룸에 들어가는 중', '옷 입는 중', '거울 앞에 서는 중', '마무리하는 중'];
+  var waitT = null, waitP = null, waitStep = 0, waitName = '';
+  function waitStart(name) {
+    waitEnd(false, true);
+    waitName = name || ''; waitStep = 0;
+    var o = document.createElement('div'); o.id = 'fwait';
+    o.innerHTML = '<div class="fcl"></div><div class="fcr"></div><div class="fbody"><div class="fsign">FITTING ROOM</div>' +
+      '<div class="fmsg" id="fmsg">' + h(WAIT_MSGS[0]) + '<i>.</i><i>.</i><i>.</i></div><div class="fname">' + h(waitName) + '</div>' +
+      '<div class="fbar"><b id="fbar"></b></div><div class="fhint">보통 1~2분 걸려요. 닫고 다른 옷을 봐도 됩니다.</div>' +
+      '<button type="button" class="fbtn" id="fclose">닫고 계속 보기</button></div>';
+    document.body.appendChild(o);
+    requestAnimationFrame(function () { requestAnimationFrame(function () { o.classList.add('shut'); }); });
+    o.querySelector('#fclose').addEventListener('click', function () { o.classList.add('hide'); });
+    var t0 = Date.now();
+    waitT = setInterval(function () {
+      var s = Math.min(WAIT_MSGS.length - 1, Math.floor((Date.now() - t0) / 14000));
+      var m = document.getElementById('fmsg');
+      if (m && s !== waitStep) { waitStep = s; m.firstChild.nodeValue = WAIT_MSGS[s]; }
+      var p = 90 * (1 - Math.exp(-(Date.now() - t0) / 40000));  /* 처음엔 빨리, 90% 근처에서 천천히 */
+      var bar = document.getElementById('fbar'); if (bar) bar.style.width = p.toFixed(1) + '%';
+    }, 500);
+  }
+  function waitEnd(ok, quick) {
+    if (waitT) { clearInterval(waitT); waitT = null; }
+    var o = document.getElementById('fwait'); if (!o) return;
+    if (quick) { o.remove(); return; }
+    var bar = document.getElementById('fbar'); if (bar && ok) bar.style.width = '100%';
+    o.classList.remove('hide');
+    setTimeout(function () { o.classList.remove('shut'); o.classList.add('opening'); setTimeout(function () { o.remove(); }, 1300); }, ok ? 500 : 0);
+  }
   function tryonRow(it) {
     var has = !!urls.tryon[it.id];
-    return '<div class="tryon"><label class="btn sm" style="cursor:pointer">' + (has ? '입은 모습 바꾸기' : '입은 모습 올리기') + '<input type="file" accept="image/*" data-file="tryon:' + it.id + '" hidden></label>' +
+    return '<div class="tryon">' + genButton(it) + '<label class="btn sm" style="cursor:pointer">' + (has ? '입은 모습 바꾸기' : '입은 모습 올리기') + '<input type="file" accept="image/*" data-file="tryon:' + it.id + '" hidden></label>' +
       (has ? '<button class="btn sm danger" data-act="clearTryon" data-id="' + it.id + '">삭제</button>' : '') + '</div>';
   }
 
@@ -775,12 +915,15 @@
         '<div class="note">추정 결과이며 실제 착용감을 보장하지 않습니다.</div><button class="btn" data-act="closeSheet">닫기</button>';
     }
     if (sheet === 'cfg') { openCfg = true; return '<h3>등급 기준 보정</h3>' + cfgPanel() + '<button class="btn" data-act="closeSheet">닫기</button>'; }
+    if (sheet === 'avatar') return viewAvatarSheet();
+    if (sheet === 'plan') return viewPlanSheet();
     /* settings */
     var av = urls.avatar ? '<img class="uav big" alt="" src="' + urls.avatar + '">' : '<span class="uav big">' + h(String(user.nick).charAt(0)) + '</span>';
     return '<h3>설정</h3>' +
       (!E.num(state.profile.height) ? '<div class="rec">먼저 성별·키·몸무게를 입력해 주세요. 치수는 나중에 여기서 언제든 바꿀 수 있어요.</div>' : '') +
       '<div class="card"><div class="ucard">' + av + '<div><b>' + h(user.nick) + ' 님</b><div class="note">이 기기 안에 저장된 프로필</div></div></div>' +
       '<div class="acts"><button class="btn sm" data-act="logout">프로필 바꾸기</button><button class="btn sm danger" data-act="logout">로그아웃</button></div></div>' +
+      subCard() +
       '<div class="sec">내 정보 변경</div>' + profileForm() + mediaCard() +
       '<button class="btn" data-act="open" data-name="cfg">등급 기준 보정</button>' +
       '<button class="btn" data-act="sample">기본 모델 + 예시 옷으로 맞추기</button>' +
@@ -789,6 +932,7 @@
   }
 
   function viewMain() {
+    ensureStyle();
     var ev = safeEval();
     var segs = MOTIONS.map(function (x, i) { return '<button data-act="motion" data-i="' + i + '" class="' + (state.motion === i ? 'on' : '') + '" aria-label="' + x + '"><i></i><span>' + x + '</span></button>'; }).join('');
     var chips = ev.results.map(function (r) {
@@ -808,16 +952,18 @@
       sh = '<div class="sheetbg' + (half ? ' lite' : '') + '" data-act="closeSheet"></div><div class="sheet' + (half ? ' half' : '') + '" role="dialog" aria-modal="true"><div class="grab"></div>' + sheetInner(ev) + '</div>';
     }
     return '<div class="reel">' + reelMedia() +
-      '<div class="rtop"><div class="rsegs">' + segs + '</div><div class="rbar"><div class="wm">AI FIT</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
+      '<div class="rtop"><div class="rsegs">' + segs + '</div><div class="rbar"><div class="wm">FITON</div><span class="rtag">' + h(user.nick) + ' 님</span></div></div>' +
       '<div class="rrail">' + rail + '</div>' +
-      '<div class="rcap"><div class="rwho">@' + h(user.nick) + ' · 오늘의 코디</div><div class="fchips">' + (chips || '<span class="fchip">아래 버튼에서 옷을 골라 보세요</span>') + '</div>' +
+      '<div class="rcap">' + styleTabs() + styleCard() +
+      (chips ? '<div class="fchips">' + chips + '</div>' : '') +
       (ev.note ? '<div class="rnote">' + h(ev.note) + '</div>' : '') +
-      '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다 · 좌우로 넘겨 동작 바꾸기</div></div>' + sh + '</div>';
+      '<div class="rfine">추정 결과이며 실제 착용감을 보장하지 않습니다 · 좌우로 넘겨 동작 바꾸기</div></div>' + fab() + sh + '</div>';
   }
 
+  var clean = true; /* 처음 접속하면 영상만 꽉 차게 보이고, 화면을 탭하면 메뉴가 나타난다 */
   function render() {
     if (!user) {
-      root.className = '';
+      root.className = lg.mode === 'list' ? 'lgfull' : '';
       root.innerHTML = viewLogin();
       loadThumbs();
       var f = lg.mode !== 'list' && root.querySelector('[data-lg]');
@@ -831,7 +977,8 @@
     }
     var old = root.querySelector('.sheet'), hs = root.querySelector('.hs');
     var st = old && lastSheet === sheet ? old.scrollTop : 0, sl = hs && lastSheet === sheet ? hs.scrollLeft : 0;
-    root.className = 'reelmode';
+    if (sheet) clean = false;
+    root.className = 'reelmode' + (clean ? ' clean' : '');
     root.innerHTML = viewMain();
     lastSheet = sheet;
     var ns = root.querySelector('.sheet'), nh = root.querySelector('.hs');
@@ -846,7 +993,7 @@
     sheet = name; render();
   }
   window.addEventListener('popstate', function (e) {
-    if (!user) { render(); return; }
+    if (!user) { resetLogin(); render(); return; }
     sheet = (e.state && e.state.sh) || null;
     if (sheet !== 'edit') state.draft = null;
     render();
@@ -874,6 +1021,139 @@
   ACT.cancelEdit = function () { state.draft = null; ACT.closeSheet(); };
   ACT.logout = function () { onbShown = false; sheet = null; try { history.replaceState({}, ''); } catch (e) {} _logout(); };
 
+  /* ====================== FITON: 스타일 카드 · 아바타 만들기 · 구독 횟수 (데이터는 styles-data.js) ====================== */
+  function monthKey() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2); }
+  /* 구독 상태는 항상 이 함수로 읽는다: 이전 저장본에 없을 수 있고, 달이 바뀌면 사용 횟수를 0으로 되돌린다 */
+  function subNow() {
+    var s = state.sub;
+    if (!s || typeof s !== 'object') s = state.sub = { plan: 'free', used: 0, month: '' };
+    if (!FD.plans[s.plan]) s.plan = 'free';
+    if (s.month !== monthKey()) { s.month = monthKey(); s.used = 0; }
+    s.used = Number(s.used) || 0;
+    return s;
+  }
+  function planNow() { return FD.plans[subNow().plan]; }
+  function tryLeft() { return Math.max(0, planNow().limit - subNow().used); }
+  function tryUse() { subNow().used++; save(); }
+  function stylesIn(tab) { return FD.styles.filter(function (s) { return tab === 'today' || (s.tags || []).indexOf(tab) >= 0; }); }
+  function curStyle() { return FD.styles.filter(function (s) { return s.id === state.styleId; })[0] || null; }
+  function ensureStyle() {
+    if (!FD.tabs.some(function (t) { return t.key === state.styleTab; })) state.styleTab = 'today';
+    var list = stylesIn(state.styleTab), cur = curStyle();
+    if (!cur || list.indexOf(cur) < 0) state.styleId = list.length ? list[0].id : null;
+  }
+  function styleItemId(st, cat) { return 's_' + st.id + '_' + cat; }
+  /* 스타일의 상의/하의/신발을 옷장에 넣고(이미 있으면 그대로) 코디로 고른다 → 기존 옷장·핏 판정 흐름에 그대로 연결된다 */
+  function importStyle(st) {
+    ['top', 'bottom', 'shoe'].forEach(function (cat) {
+      var src = st.items && st.items[cat];
+      if (!src) { delete state.sel[cat]; return; }
+      var id = styleItemId(st, cat);
+      if (!item(id)) {
+        var rec = JSON.parse(JSON.stringify(src));
+        rec.id = id; rec.cat = cat; rec.isRef = false; rec.refSize = '';
+        if (!rec.photo) rec.photo = st.modelImage || '';
+        rec.sizes = (rec.sizes || []).map(function (s) { var r = {}; Object.keys(s).forEach(function (k) { r[k] = String(s[k]); }); return r; });
+        state.closet.push(rec);
+      }
+      var cur = state.sel[cat];
+      if (!cur || cur.id !== id) state.sel[cat] = { id: id, size: null };
+    });
+    save();
+  }
+  function styleApplied(st) {
+    return ['top', 'bottom', 'shoe'].every(function (cat) {
+      var src = st.items && st.items[cat], s = state.sel[cat];
+      return src ? !!(s && s.id === styleItemId(st, cat)) : !s;
+    });
+  }
+  function styleTabs() {
+    return '<div class="stabs">' + FD.tabs.map(function (t) {
+      return '<button type="button" class="' + (state.styleTab === t.key ? 'on' : '') + '" data-act="styleTab" data-tab="' + h(t.key) + '">' + h(t.label) + '</button>';
+    }).join('') + '</div>';
+  }
+  function shopBtn(st, shop) {
+    var u = safeUrl(st[shop + 'Url']), label = shop === 'coupang' ? '쿠팡에서 보기' : '네이버에서 보기';
+    return u ? '<a class="sbtn ' + shop + '" href="' + h(u) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>'
+      : '<button type="button" class="sbtn off" data-act="noLink">' + label + '</button>';
+  }
+  function styleCard() {
+    var st = curStyle();
+    if (!st) return '<div class="scard"><div class="sp">이 분류에 등록된 스타일이 없습니다.</div></div>';
+    var list = stylesIn(state.styleTab), i = list.indexOf(st), n = list.length, me = state.view === 'me';
+    return '<div class="scard">' +
+      '<div class="sh"><button type="button" data-act="styleNext" data-d="-1" aria-label="이전 스타일"' + (n < 2 ? ' disabled' : '') + '>‹</button>' +
+      '<div class="st"><b>' + h(st.title) + '</b><span>' + h(st.priceText || '') + (n > 1 ? ' · ' + (i + 1) + '/' + n : '') + '</span></div>' +
+      '<button type="button" data-act="styleNext" data-d="1" aria-label="다음 스타일"' + (n < 2 ? ' disabled' : '') + '>›</button></div>' +
+      '<div class="sp">' + h(st.points || '') + '</div>' +
+      '<div class="sview"><button type="button" data-act="view" data-v="model" class="' + (me ? '' : 'on') + '">기본 모델</button>' +
+      '<button type="button" data-act="view" data-v="me" class="' + (me ? 'on' : '') + '">내 아바타</button>' +
+      (styleApplied(st) ? '<span class="sapplied">코디 적용됨</span>' : '<button type="button" class="sapply" data-act="styleApply">이 코디로 핏 보기</button>') + '</div>' +
+      '<button type="button" class="sgo" data-act="styleTryon">내 아바타로 입어보기<small>남은 ' + tryLeft() + '회 · ' + h(planNow().name) + '</small></button>' +
+      '<div class="sshop">' + shopBtn(st, 'coupang') + shopBtn(st, 'naver') + '</div></div>';
+  }
+  function fab() { return '<button type="button" class="fab" data-act="open" data-name="avatar" aria-label="아바타 만들기"><span class="fi">' + IC.avatar + '</span><span>아바타 만들기</span></button>'; }
+  function subCard() {
+    var s = subNow(), p = planNow();
+    return '<div class="card"><div class="h"><span>구독 · 입어보기 횟수</span><span class="tag real">' + h(p.name) + '</span></div>' +
+      '<div class="line"><span>이번 달 남은 횟수</span><b>' + tryLeft() + ' / ' + p.limit + '회</b></div>' +
+      '<div class="line"><span>이번 달 사용</span><b>' + s.used + '회</b></div>' +
+      '<button class="btn sm" data-act="open" data-name="plan">플랜 보기 · 바꾸기</button></div>';
+  }
+  function viewAvatarSheet() {
+    var p = state.profile, ok = E.num(p.height) && E.num(p.weight);
+    function val(v, u) { return v !== '' && v != null ? '<b>' + h(v) + u + '</b>' : '<b class="warn">없음</b>'; }
+    return '<h3>아바타 만들기</h3>' +
+      '<div class="note">FITON 아바타는 설정에 넣은 성별·키·몸무게·치수로 만든 내 체형 캐릭터예요. 얼굴 사진은 필요 없고 서버로 보내지도 않아요. 따로 만든 아바타 이미지가 있으면 연결해서 대신 보여 줄 수 있어요.</div>' +
+      '<div class="card"><div class="h"><span>내 체형</span>' + (ok ? '<span class="tag real">준비됨</span>' : '<span class="tag">치수 필요</span>') + '</div>' +
+      '<div class="line"><span>성별</span><b>' + (p.gender === 'male' ? '남성' : '여성') + '</b></div>' +
+      '<div class="line"><span>키</span>' + val(p.height, 'cm') + '</div>' +
+      '<div class="line"><span>몸무게</span>' + val(p.weight, 'kg') + '</div>' +
+      '<div class="line"><span>아바타 이미지</span><b>' + (urls.avatar ? '연결됨' : '기본 캐릭터') + '</b></div>' +
+      '<button class="btn' + (ok ? ' sm' : ' p') + '" data-act="open" data-name="settings">' + (ok ? '치수 수정 (설정)' : '성별·키·몸무게 입력하기') + '</button></div>' +
+      subCard() + mediaCard() +
+      '<button class="btn p" data-act="closeSheet">완료</button>';
+  }
+  function viewPlanSheet() {
+    var s = subNow();
+    return '<h3>구독 플랜</h3>' +
+      '<div class="rec">현재 <b>' + h(planNow().name) + '</b> · 이번 달 ' + s.used + '회 사용 · 남은 <b>' + tryLeft() + '회</b></div>' +
+      (tryLeft() <= 0 ? '<div class="warn">이번 달 입어보기 횟수를 다 썼어요. 플랜을 올리면 바로 더 쓸 수 있어요.</div>' : '') +
+      Object.keys(FD.plans).map(function (k) {
+        var p = FD.plans[k], on = k === s.plan;
+        return '<div class="card plan' + (on ? ' on' : '') + '"><div class="h"><span>' + h(p.name) + ' <span class="sub">' + h(p.price || '') + '</span></span><b>월 ' + p.limit + '회</b></div>' +
+          '<div class="note">' + (p.features || []).map(h).join(' · ') + '</div>' +
+          (on ? '<span class="tag real" style="align-self:flex-start">사용 중</span>' : '<button class="btn sm" data-act="plan" data-plan="' + h(k) + '">이 플랜 선택</button>') + '</div>';
+      }).join('') +
+      '<div class="note">결제 연동 전이라 플랜 선택은 이 기기 안에서만 적용되는 체험용입니다. AI 서버에는 기기당 하루 이용 한도가 따로 있어요.</div>' +
+      '<button class="btn" data-act="closeSheet">닫기</button>';
+  }
+  ACT.styleTab = function (el) { state.styleTab = el.dataset.tab; ensureStyle(); state.view = 'model'; save(); render(); };
+  ACT.styleNext = function (el) {
+    var list = stylesIn(state.styleTab); if (list.length < 2) return;
+    var i = list.indexOf(curStyle()), j = (i + Number(el.dataset.d) + list.length) % list.length;
+    state.styleId = list[j].id; state.view = 'model'; save(); render();
+  };
+  ACT.styleApply = function () { var st = curStyle(); if (!st) return; importStyle(st); toast('코디를 옷장에 넣었어요. 상의·하의·신발 버튼에서 사이즈를 고를 수 있어요.'); render(); };
+  ACT.view = function (el) {
+    state.view = el.dataset.v; save();
+    if (state.view === 'me' && !wornImage()) toast('아직 입어 본 모습이 없어요. 아래 버튼으로 내 아바타에 입혀 보세요.');
+    render();
+  };
+  ACT.noLink = function () { toast('구매 링크 준비중입니다.'); };
+  ACT.plan = function (el) { var k = el.dataset.plan; if (!FD.plans[k]) return; subNow().plan = k; save(); toast(FD.plans[k].name + ' 플랜으로 바꿨어요 (결제 연동 전 체험용).'); render(); };
+  /* 내 아바타로 입어보기: 치수 → 남은 횟수 → 스타일 옷을 옷장에 넣고 → 기존 AI 입혀 보기 */
+  ACT.styleTryon = function () {
+    var st = curStyle(); if (!st || genPending) return;
+    if (!E.num(state.profile.height) || !E.num(state.profile.weight)) { toast('먼저 성별·키·몸무게를 입력해 주세요.'); openSheet('settings'); return; }
+    if (tryLeft() <= 0) { toast('이번 달 입어보기 횟수를 다 썼어요.'); openSheet('plan'); return; }
+    if (!genEnabled()) { toast('AI 입혀 보기 서버가 꺼져 있어요.'); return; }
+    importStyle(st);
+    var main = ['top', 'bottom', 'shoe'].map(function (c) { return item(styleItemId(st, c)); }).filter(function (x) { return x && x.photo; })[0];
+    if (!main) { toast('이 스타일의 상품 사진을 올리면 내 아바타에 입혀 드려요.'); openSheet('top'); return; }
+    ACT.genTryon({ dataset: { id: main.id } });
+  };
+
   /* 이미지 화면을 누르면 전체 화면으로 보기(다시 누르거나 ✕ 로 닫기) */
   function closeFull() { var o = document.getElementById('fsview'); if (o) o.remove(); document.removeEventListener('keydown', fullKey); }
   function fullKey(e) { if (e.key === 'Escape') closeFull(); }
@@ -888,6 +1168,7 @@
     document.addEventListener('keydown', fullKey);
   }
   root.addEventListener('click', function (e) {
+    if (clean) { clean = false; render(); return; }
     var m = e.target.closest('#rmedia');
     if (m && !e.target.closest('[data-act],button,a')) { openFull(m); return; }
     var el = e.target.closest('[data-act]');
@@ -898,5 +1179,5 @@
 
   try { history.replaceState({}, ''); } catch (e) {}
   render();
-  loadMedia().then(render);
+  loadMedia().then(function () { render(); genResume(); });
 })();

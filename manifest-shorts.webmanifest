@@ -1,7 +1,7 @@
 {
-  "name": "AI FIT",
-  "short_name": "AI FIT",
-  "description": "내 캐릭터로 내게 맞는 옷을 고르는 핏 체크 앱",
+  "name": "FITON",
+  "short_name": "FITON",
+  "description": "쇼츠에서 본 스타일, 바로 입어보기 — 내 아바타에 입혀 보고 쿠팡·네이버에서 바로 구매",
   "lang": "ko",
   "start_url": "./shorts.html",
   "scope": "./",

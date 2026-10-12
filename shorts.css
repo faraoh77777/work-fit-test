@@ -24,3 +24,93 @@
 #fsview .rmedia img.worn{object-fit:contain;object-position:center}
 #fsview .rmedia video{object-fit:contain}
 #fsview .fsx{position:absolute;top:14px;right:14px;z-index:2;width:40px;height:40px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:18px;cursor:pointer}
+
+/* 첫 화면: 영상만 꽉 차게(탭하면 메뉴 표시) */
+#app.reelmode.clean{max-width:calc(100svh * 9 / 16);margin:0 auto;border-radius:0;height:100svh}
+#app.reelmode.clean .rtop,#app.reelmode.clean .rrail,#app.reelmode.clean .rcap,#app.reelmode.clean .rbadge{opacity:0;pointer-events:none}
+#app.reelmode.clean::after{content:"화면을 탭하세요";position:absolute;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.45);padding:5px 14px;border-radius:99px;pointer-events:none}
+#app{position:relative}
+
+/* 처음 접속(프로필 선택) 화면: 영상이 화면 전체를 채우고 메뉴는 위·아래에 겹쳐 보인다 */
+#app.lgfull{position:relative;max-width:calc(100svh * 9 / 16);margin:0 auto;height:100svh;min-height:0;border:0;border-radius:0;background:#000;color:#fff}
+body:has(#app.lgfull){padding:0;background:#000}
+#app.lgfull .herovid{position:absolute;inset:0;z-index:0;max-height:none;aspect-ratio:auto;border:0;border-radius:0;margin:0}
+#app.lgfull .herovid::after{content:"";position:absolute;left:0;right:0;bottom:0;height:60%;background:linear-gradient(transparent,rgba(0,0,0,.82));pointer-events:none}
+#app.lgfull .herovid .hv-cap{top:58px;background:none;font-size:18px}
+#app.lgfull .herovid .hv-ai{bottom:auto;top:96px;right:12px}
+#app.lgfull .bar{position:absolute;left:0;right:0;top:0;background:linear-gradient(rgba(0,0,0,.6),transparent);border:0;color:#fff}
+#app.lgfull .brand{color:#fff}
+#app.lgfull .brand .mini{color:rgba(255,255,255,.85)}
+#app.lgfull .body{margin-top:auto;flex:none;padding-bottom:6px}
+#app.lgfull .body > *:not(.herovid){position:relative;z-index:1}
+#app.lgfull .sec,#app.lgfull .note{color:#fff}
+#app.lgfull .note{opacity:.85}
+#app.lgfull .foot{position:relative;z-index:2;background:transparent;border:0}
+
+/* AI 입혀 보기 */
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 28px);transform:translateX(-50%);z-index:20000;max-width:88%;background:rgba(20,20,20,.92);color:#fff;font-size:14px;font-weight:600;padding:12px 16px;border-radius:12px;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+
+/* 피팅룸 대기 연출: 커튼이 닫히고, 끝나면 열린다 */
+#fwait{position:fixed;inset:0;z-index:15000;display:flex;justify-content:center;background:rgba(0,0,0,.0);transition:background .8s,opacity .4s;pointer-events:auto}
+#fwait.shut{background:#1a1210}
+#fwait.hide{opacity:0;pointer-events:none}
+#fwait.opening{pointer-events:none}
+#fwait .fcl,#fwait .fcr{position:absolute;top:0;bottom:0;width:50%;background:repeating-linear-gradient(90deg,#7a1f2b 0 5vmin,#5e1620 5vmin 7vmin);box-shadow:inset 0 0 6vmin rgba(0,0,0,.45);transition:transform 1.2s cubic-bezier(.5,0,.2,1);z-index:2}
+#fwait .fcl{left:0;transform:translateX(-102%)}
+#fwait .fcr{right:0;transform:translateX(102%)}
+#fwait.shut .fcl,#fwait.shut .fcr{transform:none}
+#fwait.opening .fcl{transform:translateX(-102%)}#fwait.opening .fcr{transform:translateX(102%)}
+#fwait.opening{background:transparent}
+#fwait .fbody{position:relative;z-index:3;width:min(100vw,440px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#fff;text-align:center;padding:0 28px;opacity:0;transition:opacity .6s .8s}
+#fwait.shut .fbody{opacity:1}
+#fwait.opening .fbody{opacity:0;transition:opacity .3s}
+#fwait .fsign{padding:6px 18px;border-radius:6px;background:#1d1d1d;color:#ffe9b8;font-weight:800;letter-spacing:.14em;font-size:20px;text-shadow:0 0 10px rgba(255,214,140,.9);box-shadow:0 0 28px rgba(255,214,140,.45)}
+#fwait .fmsg{font-size:18px;font-weight:700}
+#fwait .fmsg i{display:inline-block;font-style:normal;animation:fdot 1s infinite}
+#fwait .fmsg i:nth-child(2){animation-delay:.2s}#fwait .fmsg i:nth-child(3){animation-delay:.4s}
+#fwait .fname{font-size:13px;opacity:.8;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#fwait .fbar{width:min(70vw,260px);height:6px;border-radius:99px;background:rgba(255,255,255,.2);overflow:hidden}
+#fwait .fbar b{display:block;height:100%;width:0;background:#ffd48a;border-radius:99px;transition:width .6s ease}
+#fwait .fhint{font-size:12px;opacity:.7}
+#fwait .fbtn{margin-top:6px;border:1px solid rgba(255,255,255,.5);background:rgba(0,0,0,.25);color:#fff;border-radius:99px;padding:10px 20px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+@keyframes fdot{0%,100%{opacity:.25}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){#fwait .fcl,#fwait .fcr{transition:none}}
+
+/* FITON: 스타일 분류 탭 · 스타일 카드 · 아바타 만들기 플로팅 버튼 (메인 화면 하단 rcap 안, 오른쪽 72px 는 rrail 자리) */
+.hv-cap small{display:block;font-size:13px;font-weight:500;opacity:.92;margin-top:2px}
+.rcap{padding-top:56px}
+.stabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.stabs::-webkit-scrollbar{display:none}
+.stabs button{flex:none;border:1px solid rgba(255,255,255,.45);background:rgba(0,0,0,.38);color:#fff;border-radius:99px;padding:5px 12px;font-size:12px;font-weight:600;backdrop-filter:blur(4px)}
+.stabs button.on{background:#fff;color:#141414;border-color:#fff}
+.scard{background:rgba(255,255,255,.96);color:#141414;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;box-shadow:0 4px 18px rgba(0,0,0,.3)}
+.scard .sh{display:flex;align-items:center;gap:6px}
+.scard .sh > button{flex:none;width:28px;height:28px;border:0;border-radius:50%;background:#f0ede8;color:#141414;font-size:18px;line-height:1;padding:0}
+.scard .sh > button:disabled{opacity:.3}
+.scard .st{flex:1;min-width:0;display:flex;flex-direction:column}
+.scard .st b{font-size:15px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scard .st span{font-size:11px;color:#6b6862}
+.scard .sp{font-size:12px;color:#3a3832;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.scard .sview{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.scard .sview button{border:1px solid #e6e3de;background:#fff;border-radius:99px;padding:3px 10px;font-size:11px;color:#6b6862}
+.scard .sview button.on{background:#141414;color:#fff;border-color:#141414;font-weight:600}
+.scard .sview .sapply{margin-left:auto;color:#e5392b;border-color:#e5392b;font-weight:600}
+.scard .sapplied{margin-left:auto;font-size:11px;color:#2e8b57;font-weight:600}
+.scard .sgo{border:0;border-radius:8px;background:#e5392b;color:#fff;font-weight:800;font-size:14px;padding:9px 10px;display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.25}
+.scard .sgo small{font-size:10px;font-weight:500;opacity:.9}
+.scard .sshop{display:flex;gap:6px}
+.sbtn{flex:1;text-align:center;border-radius:8px;padding:8px 4px;font-size:12px;font-weight:700;text-decoration:none;border:1px solid #141414;color:#141414;background:#fff;cursor:pointer;font-family:inherit}
+.sbtn.coupang{background:#141414;color:#fff}
+.sbtn.off{opacity:.45;border-style:dashed}
+.fchips{flex-direction:row;flex-wrap:wrap}
+.fchip{max-width:100%}
+.fab{position:absolute;right:10px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:3;border:0;background:none;color:#fff;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:0;text-shadow:0 0 4px rgba(0,0,0,.75),0 1px 2px rgba(0,0,0,.7)}
+.fab .fi{width:50px;height:50px;border-radius:50%;background:#e5392b;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+.fab .fi svg{width:26px;height:26px}
+#app.reelmode.clean .fab{opacity:0;pointer-events:none}
+.rmedia img.worn.model{object-position:top}
+.card.plan.on{border-color:var(--accent)}
+
+.newprof{margin-left:auto;border:0;border-radius:99px;background:#fff;color:#141414;font:inherit;font-size:13px;font-weight:700;padding:8px 14px;cursor:pointer}
+
+.backbtn{border:0;background:none;color:inherit;font:inherit;font-size:22px;line-height:1;padding:4px 6px 4px 0;cursor:pointer}
