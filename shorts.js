@@ -1094,13 +1094,10 @@
     return u ? '<a class="sbtn ' + shop + '" href="' + h(u) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>'
       : '<button type="button" class="sbtn off" data-act="noLink">' + label + '</button>';
   }
-  /* 코디 카드 설명 문구의 옷 이름 옆에 사이즈 버튼: 상의(M)·하의(S)·신발(240) — 누르면 그 옷의 사이즈가 순서대로 바뀌고 핏 결과가 바로 갱신된다. 내 신체 치수는 그대로 */
+  /* 코디 카드 설명: 모델이 입고 있는 옷 이름과 사이즈(styles-data 의 worn)를 그대로 보여 준다. 선택하는 곳이 아님 */
   function pointsHtml(st) {
     var pts = st.points || '', k = pts.indexOf('. '), head = k < 0 ? pts : pts.slice(0, k), tail = k < 0 ? '' : pts.slice(k + 2);
-    var b = safeEval().results.filter(function (r) { return r.all && r.all.length > 1 && r.chosen; }).map(function (r) {
-      return '<button type="button" class="ssz" data-act="cycleSize" data-cat="' + r.cat + '" aria-label="' + CATS[r.cat] + ' 사이즈 바꾸기">' + CATS[r.cat] + '(' + h(r.chosen) + ')' + (r.chosen === r.recommended ? '★' : '') + '</button>';
-    }).join('');
-    return h(head) + (b ? ' ' + b : '') + (tail ? '<br>' + h(tail) : '');
+    return h(st.worn || head) + (tail ? '<br>' + h(tail) : '');
   }
   function styleCard() {
     var st = curStyle();
@@ -1154,12 +1151,6 @@
       '<button class="btn" data-act="closeSheet">닫기</button>';
   }
   ACT.styleTab = function (el) { state.styleTab = el.dataset.tab; ensureStyle(); state.view = 'model'; save(); render(); };
-  ACT.cycleSize = function (el) {
-    var cat = el.dataset.cat, r = safeEval().results.filter(function (x) { return x.cat === cat; })[0], sel = state.sel[cat];
-    if (!r || !sel || !r.all.length) return;
-    var labels = r.all.map(function (e) { return e.size; }), i = labels.indexOf(r.chosen);
-    sel.size = labels[(i + 1) % labels.length]; save(); render();
-  };
   ACT.styleNext = function (el) {
     var list = stylesIn(state.styleTab); if (list.length < 2) return;
     var i = list.indexOf(curStyle()), j = (i + Number(el.dataset.d) + list.length) % list.length;

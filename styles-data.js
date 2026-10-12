@@ -23,7 +23,7 @@ window.FITON = {
   styles: [
     {
       id: 'fall_work', title: '2026 가을 출근룩', tags: ['today', 'fall', 'work'],
-      priceText: '39,000원부터', points: '베이지 트렌치 + 블랙 슬랙스 + 로퍼. 깔끔하고 단정한 오피스 핏',
+      priceText: '39,000원부터', worn: '베이지 트렌치(M) + 블랙 슬랙스(S) + 로퍼(240)', points: '베이지 트렌치 + 블랙 슬랙스 + 로퍼. 깔끔하고 단정한 오피스 핏',
       fitNote: '트렌치는 어깨가 살짝 떨어지는 세미오버, 슬랙스는 일자 정핏',
       modelImage: 'assets/styles/look1.jpg',
       coupangUrl: 'https://www.coupang.com/np/search?q=%ED%8A%B8%EB%A0%8C%EC%B9%98%EC%BD%94%ED%8A%B8',
@@ -39,7 +39,7 @@ window.FITON = {
     },
     {
       id: 'fall_cardigan', title: '가을 카디건 데이트룩', tags: ['today', 'fall', 'date', 'value'],
-      priceText: '19,900원부터', points: '카멜 카디건 + 흰 티 + 연청 데님 + 흰 스니커즈. 편하면서 포근한 캐주얼',
+      priceText: '19,900원부터', worn: '카멜 카디건(S) + 흰 티(S) + 연청 데님(S) + 흰 스니커즈(160)', points: '카멜 카디건 + 흰 티 + 연청 데님 + 흰 스니커즈. 편하면서 포근한 캐주얼',
       fitNote: '카디건은 여유 있는 오버핏, 데님은 스트레이트',
       modelImage: 'assets/styles/look2.jpg',
       coupangUrl: 'https://www.coupang.com/np/search?q=%EC%B9%B4%EB%94%94%EA%B1%B4',
@@ -55,7 +55,7 @@ window.FITON = {
     },
     {
       id: 'knit_dress', title: '니트 원피스 데이트룩', tags: ['fall', 'date'],
-      priceText: '35,000원부터', points: '버건디 골지 니트 롱 원피스 + 앵클부츠. 라인이 살아나는 가을 데이트 핏',
+      priceText: '35,000원부터', worn: '버건디 골지 니트 롱 원피스(S) + 앵클부츠(240)', points: '버건디 골지 니트 롱 원피스 + 앵클부츠. 라인이 살아나는 가을 데이트 핏',
       fitNote: '몸에 붙는 슬림핏, 스판이 있어 한 사이즈 작게 입어도 됨',
       modelImage: 'assets/styles/look3.jpg',
       coupangUrl: '', naverUrl: '',
@@ -69,7 +69,7 @@ window.FITON = {
     },
     {
       id: 'active', title: '가성비 운동룩', tags: ['today', 'value'],
-      priceText: '15,900원부터', points: '라벤더 레깅스 + 크롭 브라탑 + 바람막이 + 러닝화. 헬스장도 산책도 OK',
+      priceText: '15,900원부터', worn: '라벤더 레깅스(S) + 크롭 브라탑(S) + 바람막이(S) + 러닝화(240)', points: '라벤더 레깅스 + 크롭 브라탑 + 바람막이 + 러닝화. 헬스장도 산책도 OK',
       fitNote: '레깅스는 하이웨이스트 압박핏, 바람막이는 여유핏',
       modelImage: 'assets/styles/look4.jpg',
       coupangUrl: 'https://www.coupang.com/np/search?q=%EB%A0%88%EA%B9%85%EC%8A%A4', naverUrl: '',
@@ -84,7 +84,7 @@ window.FITON = {
     },
     {
       id: 'home', title: '포근한 홈웨어 세트', tags: ['value'],
-      priceText: '24,900원부터', points: '아이보리 플리스 파자마 상하 세트 + 룸슈즈. 집에서 쇼츠 찍기 좋은 편안함',
+      priceText: '24,900원부터', worn: '아이보리 플리스 파자마 상하 세트(M) + 룸슈즈(240)', points: '아이보리 플리스 파자마 상하 세트 + 룸슈즈. 집에서 쇼츠 찍기 좋은 편안함',
       fitNote: '상하 모두 넉넉한 여유핏',
       modelImage: 'assets/styles/look5.jpg',
       coupangUrl: '', naverUrl: 'https://search.shopping.naver.com/search/all?query=%ED%94%8C%EB%A6%AC%EC%8A%A4%20%ED%8C%8C%EC%9E%90%EB%A7%88',

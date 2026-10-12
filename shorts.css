@@ -100,7 +100,6 @@ body:has(#app.lgfull){padding:0;background:#000}
 .scard .sview button{border:1px solid #e6e3de;background:#fff;border-radius:99px;padding:3px 10px;font-size:11px;color:#6b6862}
 .scard .sview button.on{background:#141414;color:#fff;border-color:#141414;font-weight:600}
 .scard .sview .sapply{margin-left:auto;color:#e5392b;border-color:#e5392b;font-weight:600}
-.scard .ssz{border:1px solid #141414;background:#fff;color:#141414;border-radius:99px;padding:1px 8px;font-size:11px;font-weight:700;margin-right:2px;vertical-align:baseline}
 .scard .sapplied{margin-left:auto;font-size:11px;color:#2e8b57;font-weight:600}
 .scard .sgo{border:0;border-radius:8px;background:#e5392b;color:#fff;font-weight:800;font-size:14px;padding:9px 10px;display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.25}
 .scard .sgo small{font-size:10px;font-weight:500;opacity:.9}
