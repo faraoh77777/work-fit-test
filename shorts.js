@@ -343,7 +343,7 @@
         '<span id="tag-' + f[0] + '">' + (v !== '' ? srcTag('real') : (est != null ? srcTag('est') : '')) + '</span></div>';
     }).join('');
     return seg('profile.gender', p.gender, [['male', '남성'], ['female', '여성']]) +
-      '<div class="sec">내 신체 사이즈 11가지 (치수는 비워 두면 키·몸무게로 추정)</div><div>' +
+      '<div class="sec" id="sec-body">내 신체 사이즈 11가지 (치수는 비워 두면 키·몸무게로 추정)</div><div>' +
       '<div class="mrow"><span>키</span><div class="inwrap"><input type="number" inputmode="decimal" id="in-height" data-path="profile.height" data-hint="1" value="' + h(p.height) + '" aria-label="키"><small>cm</small></div><span></span></div>' +
       '<div class="mrow"><span>몸무게</span><div class="inwrap"><input type="number" inputmode="decimal" id="in-weight" data-path="profile.weight" data-hint="1" value="' + h(p.weight) + '" aria-label="몸무게"><small>kg</small></div><span></span></div>' +
       rows + '</div>' +
@@ -462,6 +462,7 @@
     tune: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+    ruler: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8" width="19" height="8" rx="1.5"/><path d="M6.5 8v3M10 8v4M13.5 8v3M17 8v4"/></svg>',
     avatar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="4"/><path d="M3 21v-1a7 7 0 0 1 11-5.7"/><path d="M19 15v6M16 18h6"/></svg>'
   };
 
@@ -953,6 +954,7 @@
       return '<button data-act="open" data-name="' + c + '" class="' + (sheet === c ? 'on' : '') + (has ? ' has' : '') + '" aria-label="' + CATS[c] + '"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">' + GLYPH[c] + '</svg><span>' + CATS[c] + '</span></button>';
     }).join('') +
       '<button data-act="open" data-name="detail" class="' + (sheet === 'detail' ? 'on' : '') + '" aria-label="핏 상세">' + IC.list + '<span>상세</span></button>' +
+      '<button data-act="bodyInput" class="' + (sheet === 'settings' ? 'on' : '') + '" aria-label="내 치수 입력">' + IC.ruler + '<span>치수</span></button>' +
       '<button data-act="open" data-name="settings" class="' + (sheet === 'settings' ? 'on' : '') + '" aria-label="설정">' + IC.gear + '<span>설정</span></button>';
     var sh = '';
     if (sheet) {
@@ -1169,6 +1171,12 @@
   function showLogin() { if (user) return; lgOpen = true; resetLogin(); try { history.pushState({ lgo: 1 }, ''); } catch (e) {} render(); window.scrollTo(0, 0); }
   function gate(msg) { toast(msg || '프로필을 만들거나 로그인하면 쓸 수 있어요.'); showLogin(); }
   ACT.lgOpen = function () { showLogin(); };
+  /* 메인 화면의 '치수' 버튼: 설정 시트를 열고 내 신체 사이즈 입력칸으로 바로 이동 */
+  ACT.bodyInput = function () {
+    if (!user) return gate('프로필을 만들면 내 신체 치수를 입력할 수 있어요.');
+    openSheet('settings');
+    setTimeout(function () { var t = document.getElementById('sec-body'), sh = root.querySelector('.sheet'); if (t && sh) sh.scrollTop = t.offsetTop - 8; }, 50);
+  };
   ACT.lgClose = function () { if (history.state && history.state.lgo) history.back(); else { lgOpen = false; resetLogin(); render(); } };
   ACT.switchUser = function () { ACT.logout(); showLogin(); };
   var _open = ACT.open, _styleApply = ACT.styleApply, _view = ACT.view, _styleTryon = ACT.styleTryon, _plan = ACT.plan;
