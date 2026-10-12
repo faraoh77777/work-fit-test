@@ -237,7 +237,7 @@
         '<label class="f">몸무게<div class="inwrap"><input type="number" inputmode="decimal" data-lg="weight" value="' + h(lg.weight) + '"><small>kg</small></div></label></div>' +
         '<div class="sec">내 캐릭터 (선택)</div>' +
         '<div class="ucard">' + (lg.avatarUrl ? '<img class="uav big" alt="캐릭터 미리보기" src="' + lg.avatarUrl + '">' : '<span class="uav big">?</span>') +
-        '<div><div class="note">만들어 둔 캐릭터(아바타) 이미지를 연결합니다. 동작 영상은 로그인 후 내 정보에서 연결할 수 있어요.</div>' +
+        '<div><div class="note">탑뷰 등 다른 곳에서 만든 내 아바타 이미지(정면 전신)를 올려 주세요. 동작 영상은 로그인 후 내 정보에서 연결할 수 있어요.</div>' +
         '<label class="btn sm" style="cursor:pointer;margin-top:6px;display:inline-block">이미지 선택<input type="file" accept="image/*" data-file="lgAvatar" hidden></label></div></div>' +
         (!users.length && hasLegacy() ? '<div class="note">이 기기에 전에 입력한 정보가 있어 첫 프로필로 옮겨집니다.</div>' : '') + err;
       foot = (users.length ? '<button class="btn ghost" data-act="lgBack">취소</button>' : '') + '<button class="btn p" data-act="lgCreate">만들고 시작하기</button>';
@@ -1126,7 +1126,7 @@
     var p = state.profile, ok = E.num(p.height) && E.num(p.weight);
     function val(v, u) { return v !== '' && v != null ? '<b>' + h(v) + u + '</b>' : '<b class="warn">없음</b>'; }
     return '<h3>아바타 만들기</h3>' +
-      '<div class="note">FITON 아바타는 설정에 넣은 성별·키·몸무게·치수로 만든 내 체형 캐릭터예요. 얼굴 사진은 필요 없고 서버로 보내지도 않아요. 따로 만든 아바타 이미지가 있으면 연결해서 대신 보여 줄 수 있어요.</div>' +
+      '<div class="note">탑뷰(TopView) 등 다른 곳에서 만든 내 아바타 이미지(정면 전신)를 올려 주세요. 올린 이미지는 이 기기에만 저장되고, “내 아바타로 입어보기”를 누를 때만 입히기 서버로 전달돼요. 성별·키·몸무게·치수는 핏(타이트·여유) 계산에 쓰여요. 올리지 않으면 기본 캐릭터가 쓰여요.</div>' +
       '<div class="card"><div class="h"><span>내 체형</span>' + (ok ? '<span class="tag real">준비됨</span>' : '<span class="tag">치수 필요</span>') + '</div>' +
       '<div class="line"><span>성별</span><b>' + (p.gender === 'male' ? '남성' : '여성') + '</b></div>' +
       '<div class="line"><span>키</span>' + val(p.height, 'cm') + '</div>' +
