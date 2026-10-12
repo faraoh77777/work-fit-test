@@ -1102,6 +1102,14 @@
     return u ? '<a class="sbtn ' + shop + '" href="' + h(u) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>'
       : '<button type="button" class="sbtn off" data-act="noLink">' + label + '</button>';
   }
+  /* 코디 카드 안 사이즈 버튼: 상의(M)·하의(S)·신발(240) — 누르면 그 옷의 사이즈가 순서대로 바뀌고 핏 결과(타이트/여유)가 바로 갱신된다. 내 신체 치수는 그대로 */
+  function sizeRow() {
+    var res = safeEval().results || [];
+    var b = res.filter(function (r) { return r.all && r.all.length > 1 && r.chosen; }).map(function (r) {
+      return '<button type="button" data-act="cycleSize" data-cat="' + r.cat + '" aria-label="' + CATS[r.cat] + ' 사이즈 바꾸기">' + CATS[r.cat] + '(' + h(r.chosen) + ')' + (r.chosen === r.recommended ? ' ★' : '') + '</button>';
+    }).join('');
+    return b ? '<div class="ssize">' + b + '</div>' : '';
+  }
   function styleCard() {
     var st = curStyle();
     if (!st) return '<div class="scard"><div class="sp">이 분류에 등록된 스타일이 없습니다.</div></div>';
@@ -1111,6 +1119,7 @@
       '<div class="st"><b>' + h(st.title) + '</b><span>' + h(st.priceText || '') + (n > 1 ? ' · ' + (i + 1) + '/' + n : '') + '</span></div>' +
       '<button type="button" data-act="styleNext" data-d="1" aria-label="다음 스타일"' + (n < 2 ? ' disabled' : '') + '>›</button></div>' +
       '<div class="sp">' + h(st.points || '') + '</div>' +
+      sizeRow() +
       '<div class="sview"><button type="button" data-act="view" data-v="model" class="' + (me ? '' : 'on') + '">기본 모델</button>' +
       '<button type="button" data-act="view" data-v="me" class="' + (me ? 'on' : '') + '">내 아바타</button>' +
       (styleApplied(st) ? '<span class="sapplied">코디 적용됨</span>' : '<button type="button" class="sapply" data-act="styleApply">이 코디로 핏 보기</button>') + '</div>' +
@@ -1154,6 +1163,12 @@
       '<button class="btn" data-act="closeSheet">닫기</button>';
   }
   ACT.styleTab = function (el) { state.styleTab = el.dataset.tab; ensureStyle(); state.view = 'model'; save(); render(); };
+  ACT.cycleSize = function (el) {
+    var cat = el.dataset.cat, r = safeEval().results.filter(function (x) { return x.cat === cat; })[0], sel = state.sel[cat];
+    if (!r || !sel || !r.all.length) return;
+    var labels = r.all.map(function (e) { return e.size; }), i = labels.indexOf(r.chosen);
+    sel.size = labels[(i + 1) % labels.length]; save(); render();
+  };
   ACT.styleNext = function (el) {
     var list = stylesIn(state.styleTab); if (list.length < 2) return;
     var i = list.indexOf(curStyle()), j = (i + Number(el.dataset.d) + list.length) % list.length;
