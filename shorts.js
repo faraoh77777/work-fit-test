@@ -1170,7 +1170,7 @@
       '<div class="line"><span>성별</span><b>' + (p.gender === 'male' ? '남성' : '여성') + '</b></div>' +
       '<div class="line"><span>키</span>' + val(p.height, 'cm') + '</div>' +
       '<div class="line"><span>몸무게</span>' + val(p.weight, 'kg') + '</div>' +
-      '<div class="line"><span>아바타 이미지</span><b>' + (urls.avatar ? '연결됨' : '기본 캐릭터') + '</b></div>' +
+      '<div class="line" style="align-items:center"><span>아바타 이미지 <b>' + (urls.avatar ? '연결됨' : '기본 캐릭터') + '</b></span><span class="acts"><label class="btn sm" style="cursor:pointer">이미지 선택<input type="file" accept="image/*" data-file="avatar" hidden></label></span></div>' +
       '<button class="btn' + (ok ? ' sm' : ' p') + '" data-act="open" data-name="settings">' + (ok ? '치수 수정 (설정)' : '성별·키·몸무게 입력하기') + '</button></div>' +
       subCard() + mediaCard() +
       '<button class="btn p" data-act="closeSheet">완료</button>';
