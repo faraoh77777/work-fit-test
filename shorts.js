@@ -1112,7 +1112,7 @@
     return s;
   }
   function planNow() { return FD.plans[subNow().plan]; }
-  function tryLeft() { return Math.max(0, planNow().limit - subNow().used); }
+  function tryLeft() { if (window.TRYON_CFG && window.TRYON_CFG.unlimited) return 999; return Math.max(0, planNow().limit - subNow().used); }
   function tryUse() { subNow().used++; save(); }
   function stylesIn(tab) { return FD.styles.filter(function (s) { return tab === 'today' || (s.tags || []).indexOf(tab) >= 0; }); }
   function curStyle() { return FD.styles.filter(function (s) { return s.id === state.styleId; })[0] || null; }
