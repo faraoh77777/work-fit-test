@@ -998,6 +998,7 @@
     }
     if (sheet === 'cfg') { openCfg = true; return '<h3>등급 기준 보정</h3>' + cfgPanel() + '<button class="btn" data-act="closeSheet">닫기</button>'; }
     if (sheet === 'avatar') return viewAvatarSheet();
+    if (sheet === 'history') return viewHistory();
     if (sheet === 'plan') return viewPlanSheet();
     /* settings */
     var av = urls.avatar ? '<img class="uav big" alt="" src="' + urls.avatar + '">' : '<span class="uav big">' + h(String(user.nick).charAt(0)) + '</span>';
@@ -1195,9 +1196,45 @@
       '<div class="line"><span>몸무게</span>' + val(p.weight, 'kg') + '</div>' +
       '<div class="line" style="align-items:center"><span>아바타 이미지 <b>' + (urls.avatar ? '연결됨' : '기본 캐릭터') + '</b></span><span class="acts"><label class="btn sm" style="cursor:pointer">이미지 선택<input type="file" accept="image/*" data-file="avatar" hidden></label></span></div>' +
       '<button class="btn' + (ok ? ' sm' : ' p') + '" data-act="open" data-name="settings">' + (ok ? '치수 수정 (설정)' : '성별·키·몸무게 입력하기') + '</button></div>' +
+      '<div class="card"><div class="h"><span>입어본 기록</span><span class="tag">' + state.closet.filter(function (x) { return urls.tryon[x.id]; }).length + '개</span></div>' +
+      '<div class="note">AI로 입혀 본 모습을 모아 보고, 원본 아바타와 나란히 비교할 수 있어요.</div>' +
+      '<button class="btn sm" data-act="open" data-name="history">기록 보기·비교</button></div>' +
       subCard() + mediaCard() +
       '<button class="btn p" data-act="closeSheet">완료</button>';
   }
+  /* 입어본 기록: 옷별로 저장된 마지막 입은 모습 목록 · 원본 아바타와 나란히 비교 · 크게 보기 */
+  var histCmp = null;
+  function histOrig() { return urls.avatar || (isMale() ? 'assets/avatar_male.jpg' : 'assets/avatar_default.jpg'); }
+  function viewHistory() {
+    var list = state.closet.filter(function (x) { return urls.tryon[x.id]; });
+    return '<h3>입어본 기록</h3>' +
+      (list.length ? '<div class="note">옷마다 마지막으로 입힌 모습 한 장이 이 기기에 저장돼요. 같은 옷을 다시 입히면 그 옷의 이전 결과는 바뀌어요.</div>' + list.map(function (it) {
+        var u = urls.tryon[it.id], cmp = histCmp === it.id;
+        return '<div class="card hist"><div class="h"><span>' + h(CATS[it.cat] || '') + ' · ' + h(it.name) + '</span></div>' +
+          (cmp ? '<div class="cmp"><figure><img alt="원본 아바타" src="' + histOrig() + '"><figcaption>원본 아바타</figcaption></figure><figure><img alt="입은 모습" src="' + u + '"><figcaption>입은 모습</figcaption></figure></div>'
+            : '<img class="hres" alt="' + h(it.name) + ' 입은 모습" src="' + u + '" data-act="histFull" data-id="' + it.id + '">') +
+          '<div class="acts"><button class="btn sm" data-act="histCmp" data-id="' + it.id + '">' + (cmp ? '비교 닫기' : '원본과 비교') + '</button>' +
+          '<button class="btn sm" data-act="histFull" data-id="' + it.id + '">크게 보기</button>' +
+          '<button class="btn sm" data-act="histShow" data-id="' + it.id + '">메인에서 보기</button>' +
+          '<button class="btn sm danger" data-act="clearTryon" data-id="' + it.id + '">삭제</button></div></div>';
+      }).join('') : '<div class="note">아직 입어본 기록이 없어요. 옷 카드의 “AI로 입혀 보기”로 입혀 보면 여기에 쌓여요.</div>') +
+      '<button class="btn p" data-act="closeSheet">닫기</button>';
+  }
+  ACT.histCmp = function (el) { histCmp = histCmp === el.dataset.id ? null : el.dataset.id; render(); };
+  ACT.histFull = function (el) {
+    var it = item(el.dataset.id), u = it && urls.tryon[it.id]; if (!u) return;
+    closeFull();
+    var o = document.createElement('div'); o.id = 'fsview';
+    o.innerHTML = '<div class="rmedia"><img class="worn" alt="' + h(it.name) + ' 입은 모습" src="' + u + '"></div><button type="button" class="fsx" aria-label="닫기">✕</button>';
+    o.addEventListener('click', closeFull);
+    document.body.appendChild(o);
+    document.addEventListener('keydown', fullKey);
+  };
+  ACT.histShow = function (el) {
+    var it = item(el.dataset.id); if (!it) return;
+    state.sel[it.cat] = { id: it.id, size: (state.sel[it.cat] && state.sel[it.cat].id === it.id) ? state.sel[it.cat].size : null };
+    exclusiveSel(it.cat); state.view = 'me'; sheet = null; save(); render(); /* 기록·아바타 시트를 한 번에 닫고 메인으로 */
+  };
   function viewPlanSheet() {
     var s = subNow();
     return '<h3>구독 플랜</h3>' +
