@@ -68,8 +68,10 @@
     var lines = String(text || '').split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
     if (cat !== 'shoe') {
       var col = parseColumns(lines, cat), all = lines.join('').replace(/\s+/g, '');
-      if (col) var big = col.sizes.some(function (r) { return Number(r.chest || r.waist || r.hip || 0) > 70; });
-      return { sizes: col.sizes, found: col.found, circ: (big || /둘레/.test(all)) && !/단면/.test(all), bad: suspect(col.sizes) };
+      if (col) {
+        var big = col.sizes.some(function (r) { return Number(r.chest || r.waist || r.hip || 0) > 70; });
+        return { sizes: col.sizes, found: col.found, circ: (big || /둘레/.test(all)) && !/단면/.test(all), bad: suspect(col.sizes) };
+      }
     }
     var keys = KEYS[cat] || [], used = {}, rows = {}, circ = false, flat = false;
 
