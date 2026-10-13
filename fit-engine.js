@@ -130,6 +130,28 @@
     return parts;
   }
 
+  /* ---------- 원피스 (상의+하의를 한 벌로) ---------- */
+  function dressLenText(len, body) {
+    var h = body.vals.height;
+    var r = (0.835 * h - len) / h; /* 밑단 높이 / 키 */
+    if (r >= 0.50) return '허벅지 위쪽까지(미니)';
+    if (r >= 0.40) return '무릎 위';
+    if (r >= 0.30) return '무릎 부근';
+    if (r >= 0.15) return '종아리 쪽(미디)';
+    return '발목 근처(맥시)';
+  }
+  function evalDress(body, g, row, cfg) {
+    var bonus = (cfg.fabric[g.fabric] || { bonus: 0 }).bonus;
+    var parts = evalTop(body, g, { chest: row.chest, shoulder: row.shoulder, sleeve: row.sleeve }, cfg);
+    [['waist', '허리'], ['hip', '엉덩이']].forEach(function (p) {
+      var v = num(row[p[0]]);
+      if (v !== null) parts.push(circPart(p[0], p[1], v, body, cfg, bonus, g.measureType));
+    });
+    var len = num(row.length);
+    if (len !== null) parts.push({ key: 'length', label: '총장', kind: 'text', text: dressLenText(len, body), src: body.src.height, gradeKey: 'fit' });
+    return parts;
+  }
+
   /* ---------- 신발 ---------- */
   function evalShoe(body, g, row, cfg) {
     var size = num(row.label);
@@ -154,8 +176,9 @@
   function evaluateRow(cat, body, garment, row, cfg) {
     var parts = cat === 'top' ? evalTop(body, garment, row, cfg)
       : cat === 'bottom' ? evalBottom(body, garment, row, cfg)
+      : cat === 'dress' ? evalDress(body, garment, row, cfg)
       : evalShoe(body, garment, row, cfg);
-    var primaryKey = cat === 'top' ? 'chest' : cat === 'bottom' ? 'waist' : 'shoe';
+    var primaryKey = cat === 'top' || cat === 'dress' ? 'chest' : cat === 'bottom' ? 'waist' : 'shoe';
     var primary = null;
     parts.forEach(function (p) { if (p.key === primaryKey) primary = p; });
     if (!primary) parts.forEach(function (p) { if (!primary && p.kind === 'circ') primary = p; });
@@ -165,7 +188,7 @@
 
   /* ---------- 사이즈 추천 ---------- */
   function recommend(cat, evals, pref, cfg) {
-    var idealKey = cat === 'top' ? 'chest' : cat === 'bottom' ? 'waist' : 'shoe';
+    var idealKey = cat === 'top' || cat === 'dress' ? 'chest' : cat === 'bottom' ? 'waist' : 'shoe';
     var target = cfg.ideal[idealKey][PREF_TO_IDX[pref] || 'fit'];
     var best = null;
     evals.forEach(function (e) {
@@ -180,7 +203,8 @@
   /* ---------- 기준 옷(내가 잘 맞는 옷) 대비 차이 ---------- */
   var REF_KEYS = {
     top: [['chest', '가슴단면'], ['shoulder', '어깨'], ['length', '총장'], ['sleeve', '소매']],
-    bottom: [['waist', '허리단면'], ['hip', '엉덩이단면'], ['thigh', '허벅지단면'], ['rise', '밑위'], ['inseam', '기장']]
+    bottom: [['waist', '허리단면'], ['hip', '엉덩이단면'], ['thigh', '허벅지단면'], ['rise', '밑위'], ['inseam', '기장']],
+    dress: [['chest', '가슴단면'], ['waist', '허리단면'], ['hip', '엉덩이단면'], ['shoulder', '어깨'], ['length', '총장'], ['sleeve', '소매']]
   };
   function refDiff(cat, row, refRow) {
     var out = [];

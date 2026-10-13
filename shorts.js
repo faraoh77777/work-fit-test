@@ -7,12 +7,13 @@
   var USERS_KEY = 'fit-users-v1', CUR_KEY = 'fit-current-user';
   var STEPS = ['profile', 'top', 'bottom', 'shoe', 'confirm', 'result'];
   var STEP_NAMES = { profile: '내 정보', top: '상의', bottom: '하의', shoe: '신발', confirm: '확인', result: '결과' };
-  var CATS = { top: '상의', bottom: '하의', shoe: '신발' };
+  var CATS = { top: '상의', bottom: '하의', dress: '원피스', shoe: '신발' };
   var MOTIONS = ['정면 서기', '한 바퀴', '걷기'];
   var PREFS = [['tight', '타이트'], ['fit', '정핏'], ['loose', '여유'], ['over', '오버핏']];
   var FIELDS = {
     top: [['chest', '가슴단면'], ['shoulder', '어깨'], ['length', '총장'], ['sleeve', '소매']],
     bottom: [['waist', '허리단면'], ['hip', '엉덩이단면'], ['thigh', '허벅지단면'], ['rise', '밑위'], ['inseam', '기장(인심)']],
+    dress: [['chest', '가슴단면'], ['shoulder', '어깨'], ['waist', '허리단면'], ['hip', '엉덩이단면'], ['length', '총장'], ['sleeve', '소매']],
     shoe: [['inner', '안쪽 길이(mm)']]
   };
   var MFIELDS = [
@@ -363,6 +364,7 @@
   }
 
   var GLYPH = {
+    dress: '<path d="M38 12 L44 12 Q50 20 56 12 L62 12 L66 30 L60 36 L72 86 L28 86 L40 36 L34 30Z"/>',
     top: '<path d="M30 20 L42 14 Q50 22 58 14 L70 20 L80 34 L68 40 L68 82 L32 82 L32 40 L20 34Z"/>',
     bottom: '<path d="M32 14 H68 L72 86 H55 L50 40 L45 86 H28Z"/>',
     shoe: '<path d="M14 58 Q14 44 28 44 L40 44 Q46 56 62 58 L86 62 Q90 72 84 76 L16 76 Q12 70 14 58Z"/>'
@@ -409,7 +411,7 @@
 
   function evaluateAll() {
     var items = [];
-    ['top', 'bottom', 'shoe'].forEach(function (cat) {
+    ['top', 'bottom', 'dress', 'shoe'].forEach(function (cat) {
       var s = state.sel[cat], it = s && item(s.id);
       if (!it) return;
       var ref = null;
@@ -432,7 +434,7 @@
   /* 고른 옷(상의→하의→신발 순) 중 '입은 모습' 이미지가 연결된 첫 번째 */
   function hasMotionVideo() { return urls.videos.some(Boolean); }
   function wornImage() {
-    var c = ['top', 'bottom', 'shoe'];
+    var c = ['top', 'bottom', 'dress', 'shoe'];
     for (var i = 0; i < c.length; i++) {
       var s = state.sel[c[i]], it = s && item(s.id);
       if (it && urls.tryon[it.id]) return { cat: c[i], name: it.name, url: urls.tryon[it.id] };
@@ -592,6 +594,11 @@
   }
 
   /* ---------- 동작 ---------- */
+  /* 원피스는 상의+하의를 대신하므로, 원피스를 고르면 상의·하의 선택을, 상의나 하의를 고르면 원피스 선택을 푼다 */
+  function exclusiveSel(cat) {
+    if (cat === 'dress') { delete state.sel.top; delete state.sel.bottom; }
+    else if (cat === 'top' || cat === 'bottom') delete state.sel.dress;
+  }
   function blankDraft(cat) {
     var sizes = cat === 'shoe' ? ['250', '260', '270'] : ['S', 'M', 'L'];
     return { id: null, cat: cat, name: '', measureType: 'flat', fabric: 'normal', photo: '', price: '', url: '', isRef: false, refSize: '', sizes: sizes.map(function (l) { return { label: l }; }) };
@@ -610,7 +617,7 @@
     else { rec.id = 'p' + (state.seq++); state.closet.push(rec); }
     state.draft = null;
     var cur = state.sel[rec.cat];
-    if (!cur || cur.id === rec.id) state.sel[rec.cat] = { id: rec.id, size: cur && rec.sizes.some(function (s) { return s.label === cur.size; }) ? cur.size : null };
+    if (!cur || cur.id === rec.id) { state.sel[rec.cat] = { id: rec.id, size: cur && rec.sizes.some(function (s) { return s.label === cur.size; }) ? cur.size : null }; exclusiveSel(rec.cat); }
     save(); render();
   }
 
@@ -799,7 +806,7 @@
 
   /* ====================== 전체 화면형(쇼츠형) 화면 ====================== */
   var editCat = null, onbShown = false, lastSheet = null;
-  var SHEET_HALF = { top: 1, bottom: 1, shoe: 1 };
+  var SHEET_HALF = { top: 1, bottom: 1, dress: 1, shoe: 1 };
 
   function safeEval() {
     try { if (!E.num(state.profile.height)) throw 0; return evaluateAll(); }
@@ -859,7 +866,7 @@
     try { localStorage.removeItem(GEN_KEY()); } catch (e) {}
     if (ok) {
       var it0 = item(id);
-      if (it0) { var cur0 = state.sel[it0.cat]; state.sel[it0.cat] = { id: id, size: cur0 && cur0.id === id ? cur0.size : null }; }
+      if (it0) { var cur0 = state.sel[it0.cat]; state.sel[it0.cat] = { id: id, size: cur0 && cur0.id === id ? cur0.size : null }; exclusiveSel(it0.cat); }
       state.view = 'me'; save(); /* 완성되면 '내 아바타' 화면으로 */
     }
     waitEnd(ok);
@@ -1010,7 +1017,7 @@
     ensureStyle();
     var ev = safeEval();
     var segs = !hasMotionVideo() ? '' : MOTIONS.map(function (x, i) { return '<button data-act="motion" data-i="' + i + '" class="' + (state.motion === i ? 'on' : '') + '" aria-label="' + x + '"><i></i><span>' + x + '</span></button>'; }).join('');
-    var rail = ['top', 'bottom', 'shoe'].map(function (c) {
+    var rail = ['top', 'bottom', 'dress', 'shoe'].map(function (c) {
       var has = state.sel[c] && item(state.sel[c].id);
       return '<button data-act="open" data-name="' + c + '" class="' + (sheet === c ? 'on' : '') + (has ? ' has' : '') + '" aria-label="' + CATS[c] + '"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">' + GLYPH[c] + '</svg><span>' + CATS[c] + '</span></button>';
     }).join('') +
@@ -1075,7 +1082,7 @@
     if (history.state && history.state.sh) history.back();
     else { sheet = null; state.draft = null; render(); }
   };
-  ACT.pick = function (el) { state.sel[el.dataset.cat] = { id: el.dataset.id, size: el.dataset.size || null }; save(); render(); };
+  ACT.pick = function (el) { state.sel[el.dataset.cat] = { id: el.dataset.id, size: el.dataset.size || null }; exclusiveSel(el.dataset.cat); save(); render(); };
   ACT.clearTryon = function (el) { dropTryon(el.dataset.id); render(); };
   ACT.sample = function () {
     if ((state.closet.length || state.profile.height) && !confirm('내 정보와 옷장이 기본 모델(여성 ' + MODEL.height + 'cm/' + MODEL.weight + 'kg)과 예시 옷으로 바뀝니다. 계속할까요?')) return;
@@ -1116,6 +1123,7 @@
   function styleItemId(st, cat) { return 's_' + st.id + '_' + cat; }
   /* 스타일의 상의/하의/신발을 옷장에 넣고(이미 있으면 그대로) 코디로 고른다 → 기존 옷장·핏 판정 흐름에 그대로 연결된다 */
   function importStyle(st) {
+    delete state.sel.dress; /* 스타일 코디는 상의·하의·신발 구성 */
     ['top', 'bottom', 'shoe'].forEach(function (cat) {
       var src = st.items && st.items[cat];
       if (!src) { delete state.sel[cat]; return; }
@@ -1133,7 +1141,7 @@
     save();
   }
   function styleApplied(st) {
-    return ['top', 'bottom', 'shoe'].every(function (cat) {
+    return !state.sel.dress && ['top', 'bottom', 'shoe'].every(function (cat) {
       var src = st.items && st.items[cat], s = state.sel[cat];
       return src ? !!(s && s.id === styleItemId(st, cat)) : !s;
     });
