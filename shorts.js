@@ -966,7 +966,7 @@
   }
   function tryonRow(it) {
     var has = !!urls.tryon[it.id];
-    return '<div class="tryon">' + genButton(it) + '<label class="btn sm" style="cursor:pointer">' + (has ? '입은 모습 바꾸기' : '입은 모습 올리기') + '<input type="file" accept="image/*" data-file="tryon:' + it.id + '" hidden></label>' +
+    return '<div class="tryon">' + genButton(it) + '<button class="btn sm" data-act="edit" data-id="' + it.id + '">' + (it.photo ? '옷·사이즈표 사진 바꾸기' : '옷·사이즈표 사진 올리기') + '</button><label class="btn sm" style="cursor:pointer">' + (has ? '입은 모습 바꾸기' : '입은 모습 올리기') + '<input type="file" accept="image/*" data-file="tryon:' + it.id + '" hidden></label>' +
       (has ? '<button class="btn sm danger" data-act="clearTryon" data-id="' + it.id + '">삭제</button>' : '') + '</div>';
   }
 
