@@ -11,6 +11,9 @@
 .rrail button svg{width:42px;height:42px;padding:10px}
 .rrail button.on svg{background:#fff;color:#141414}
 .rrail button.has svg{box-shadow:0 0 0 2px var(--accent)}
+/* 레일 버튼이 7개로 늘어 낮은 화면에서 위쪽 로그인·프로필 버튼을 가리던 문제: 화면 높이에 맞춰 버튼을 줄인다 */
+@media (max-height:760px){.rrail{gap:6px}.rrail button svg{width:36px;height:36px;padding:8px}.rrail button{font-size:10px}}
+@media (max-height:640px){.rrail{gap:3px;bottom:140px}.rrail button svg{width:30px;height:30px;padding:6px}.rrail button{font-size:9px;gap:1px}}
 
 .tryon{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
 .tryon .btn.sm{padding:4px 8px;font-size:11px}
