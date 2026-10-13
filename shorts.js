@@ -1081,22 +1081,33 @@
   }
 
   /* 시트 열기·닫기는 브라우저 기록과 연결해서 뒤로가기가 시트를 한 겹씩 닫게 한다 */
+  /* 다른 시트 위에 겹쳐 열리는 시트(닫으면 아래 시트 under 로 돌아간다). 나머지는 나란한 시트라 서로 바꿔 끼운다 */
+  var NESTED = { edit: 1, history: 1, cfg: 1, plan: 1 }, under = null, closingAt = 0;
   function openSheet(name) {
     if (sheet === name) return;
-    try { history.pushState({ sh: name }, ''); } catch (e) {}
+    under = NESTED[name] ? sheet : null;
+    /* 나란한 시트끼리는 기록을 쌓지 않고 바꿔 끼운다(기록이 쌓여 '완료'를 눌렀을 때 이전 시트가 다시 나오던 문제) */
+    var swap = sheet && !NESTED[name] && history.state && history.state.sh;
+    try { if (swap) history.replaceState({ sh: name }, ''); else history.pushState({ sh: name }, ''); } catch (e) {}
     sheet = name; render();
+  }
+  /* 시트를 한 겹 닫는다. 화면은 기록(popstate)을 기다리지 않고 바로 바꾼다 — 기록이 어긋나도 버튼은 늘 눈에 보이는 대로 동작하게 */
+  function closeOne() {
+    sheet = NESTED[sheet] ? under : null; under = null;
+    if (sheet !== 'edit') state.draft = null;
+    render();
   }
   window.addEventListener('popstate', function (e) {
     if (!user) { lgOpen = !!(e.state && (e.state.lgo || e.state.lg)); resetLogin(); render(); return; }
-    sheet = (e.state && e.state.sh) || null;
-    if (sheet !== 'edit') state.draft = null;
-    render();
+    if (Date.now() - closingAt < 1500) { closingAt = 0; return; } /* closeSheet 가 되돌린 기록: 화면은 이미 바꿨다 */
+    if (sheet) closeOne(); /* 폰의 뒤로가기 버튼: 시트 한 겹 닫기 */
   });
 
   ACT.open = function (el) { openSheet(el.dataset.name); };
   ACT.closeSheet = function () {
-    if (history.state && history.state.sh) history.back();
-    else { sheet = null; state.draft = null; render(); }
+    var hs = !!(history.state && history.state.sh);
+    closeOne();
+    if (hs) { closingAt = Date.now(); try { history.back(); } catch (e) {} }
   };
   ACT.pick = function (el) { state.sel[el.dataset.cat] = { id: el.dataset.id, size: el.dataset.size || null }; exclusiveSel(el.dataset.cat); save(); render(); };
   ACT.clearTryon = function (el) { dropTryon(el.dataset.id); render(); };
@@ -1111,7 +1122,7 @@
   var _new = ACT.new, _edit = ACT.edit, _save = ACT.saveDraft, _logout = ACT.logout;
   ACT.new = function (el) { editCat = el.dataset.cat; ocr = { busy: false, msg: '', ok: false }; _new(el); openSheet('edit'); };
   ACT.edit = function (el) { var it = item(el.dataset.id); if (!it) return; editCat = it.cat; ocr = { busy: false, msg: '', ok: false }; _edit(el); openSheet('edit'); };
-  ACT.saveDraft = function () { _save(); if (!state.draft) ACT.closeSheet(); };
+  ACT.saveDraft = function () { _save(); if (!state.draft) { sheet = 'edit'; ACT.closeSheet(); } }; /* _save 의 render 가 시트를 editCat 으로 바꿔 두므로 다시 edit 로 놓고 한 겹만 닫는다 */
   ACT.cancelEdit = function () { state.draft = null; ACT.closeSheet(); };
   ACT.logout = function () { onbShown = false; sheet = null; try { history.replaceState({}, ''); } catch (e) {} _logout(); };
 
@@ -1248,7 +1259,7 @@
   ACT.histShow = function (el) {
     var it = item(el.dataset.id); if (!it) return;
     state.sel[it.cat] = { id: it.id, size: (state.sel[it.cat] && state.sel[it.cat].id === it.id) ? state.sel[it.cat].size : null };
-    exclusiveSel(it.cat); state.view = 'me'; sheet = null; save(); render(); /* 기록·아바타 시트를 한 번에 닫고 메인으로 */
+    exclusiveSel(it.cat); state.view = 'me'; save(); ACT.closeSheet(); if (sheet) { sheet = null; under = null; render(); } /* 기록·아바타 시트를 한 번에 닫고 메인으로 */
   };
   function viewPlanSheet() {
     var s = subNow();

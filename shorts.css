@@ -8,6 +8,7 @@
 .hs::-webkit-scrollbar{display:none}
 .hs .tile{flex:0 0 118px}
 .rrail{gap:12px;z-index:3} /* 하단 rcap(z-index 2, 화면 전체 폭)이 레일 버튼을 덮어 탭이 안 먹던 문제 */
+.reel:has(> .sheetbg.lite) .rrail{z-index:5} /* 반쪽 시트가 열려도 레일 버튼은 눌리게(배경 .sheetbg z-index 4 가 레일을 덮어 다른 종류를 누르면 시트만 닫히던 문제) */
 .rrail button svg{width:42px;height:42px;padding:10px}
 .rrail button.on svg{background:#fff;color:#141414}
 .rrail button.has svg{box-shadow:0 0 0 2px var(--accent)}
