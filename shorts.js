@@ -902,6 +902,20 @@
     if (/^data:/i.test(p)) return Promise.resolve(p);
     return fetch(p).then(function (r) { if (!r.ok) throw new Error('상품 사진을 불러오지 못했습니다.'); return r.blob(); }).then(blobToDataUrl);
   }
+  /* 입히기 요청에 실을 핏 정보: 고른 사이즈(없으면 추천 사이즈)의 부위별 여유(cm). 서버가 '꽉 낌/헐렁' 문구로 바꿔 AI에게 알린다 */
+  function fitHint(it) {
+    try {
+      if (!E.num(state.profile.height) || it.cat === 'shoe') return null;
+      var s = state.sel[it.cat], size = s && s.id === it.id ? s.size : null;
+      var r = E.evaluate({ profile: state.profile, items: [{ cat: it.cat, garment: it, size: size, ref: null }] }, cfgNow()).results[0];
+      if (!r || !r.current) return null;
+      var ease = {};
+      r.current.parts.forEach(function (p) {
+        if (p.kind === 'circ' && /^(chest|waist|hip|thigh)$/.test(p.key) && isFinite(p.ease)) ease[p.key] = p.ease;
+      });
+      return Object.keys(ease).length ? { size: r.chosen, ease: ease } : null;
+    } catch (e) { return null; }
+  }
   ACT.genTryon = function (el) {
     var it = item(el.dataset.id);
     if (!it || genPending || !genEnabled()) return;
@@ -923,6 +937,7 @@
     Promise.all([photoData(it), avatarData()]).then(function (a) {
       var body = { device: deviceId(), cat: it.cat, garment: a[0], gender: isMale() ? 'male' : 'female' };
       if (a[1]) body.avatar = a[1];
+      var fh = fitHint(it); if (fh) body.fit = fh;
       return genCall(body);
     }).then(function (res) {
       if (!res.ok || !res.j.taskId) throw new Error((res.j && res.j.error) || '요청을 접수하지 못했습니다.');

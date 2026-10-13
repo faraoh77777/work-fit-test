@@ -26,7 +26,31 @@ const KEEP = " Keep her face, hair, pose, body proportions, the other clothing, 
 const KEEP_BODY = " This is a fit-check: the person's body must stay IDENTICAL to image 1. Do NOT slim, widen, lengthen, reshape or retouch the body. Keep exactly the same height, head size, shoulder width, bust, waist, hip and thigh widths, arm and leg thickness and length, body silhouette, skin, face, hair, pose, hands, the plain background and the framing, pixel-aligned with image 1. Change ONLY the clothing item named above, and render it realistically at its true cut and fit on that unchanged body (tight where it is tight, loose where it is loose, do not tailor it to flatter the body). Keep every other garment as it is. Photorealistic result. Do not add text, logos or accessories.";
 
 function toMale(t: string, male: boolean) {
-  return male ? t.replace(/a woman/g, "a man").replace(/she/g, "he").replace(/her/g, "his") : t;
+  return male ? t.replace(/a woman/g, "a man").replace(/\bshe\b/g, "he").replace(/\bher\b/g, "his") : t;
+}
+
+/* 앱이 계산한 여유(옷 둘레 − 몸 둘레, cm)를 영어 핏 설명으로 바꾼다. 숫자만 받으므로 임의 문장이 프롬프트에 들어갈 수 없다 */
+const FIT_AREAS: Record<string, string> = { chest: "bust/chest", waist: "waist", hip: "hips", thigh: "thighs" };
+function fitWord(e: number) {
+  if (e < -4) return "much too small: the fabric is stretched taut, clinging and straining with visible tension wrinkles, riding up, and cannot close or sit properly";
+  if (e < 0) return "tight: clinging to the body with slight stretch lines";
+  if (e < 4) return "snug and close to the body";
+  if (e < 10) return "a regular comfortable fit with light drape";
+  if (e < 18) return "relaxed and loose with visible folds and extra fabric";
+  return "oversized and baggy: much too big for her, the fabric hangs loosely in deep folds, the shoulders drop, the sleeves and hem extend longer than designed";
+}
+function fitText(fit: unknown, cat: string) {
+  if (!fit || typeof fit !== "object") return "";
+  const ease = (fit as { ease?: Record<string, unknown> }).ease;
+  if (!ease || typeof ease !== "object") return "";
+  const order = cat === "bottom" ? ["waist", "hip", "thigh"] : cat === "dress" ? ["chest", "waist", "hip"] : ["chest"];
+  const out: string[] = [];
+  for (const k of order) {
+    const v = Number(ease[k]);
+    if (ease[k] == null || !isFinite(v)) continue;
+    out.push("at her " + FIT_AREAS[k] + " it is " + fitWord(Math.max(-30, Math.min(50, v))));
+  }
+  return out.length ? " FIT OF THE GARMENT (the garment's real size relative to her body, show it visibly in the image): " + out.join("; ") + ". Draw the garment's size honestly, scaled to its true size relative to her unchanged body, never resized to flatter her." : "";
 }
 
 function cors(req: Request) {
@@ -86,7 +110,7 @@ function findImageUrl(o: unknown): string {
   return "";
 }
 /* 접수: 사진 두 장을 올리고 편집 요청만 보낸 뒤 번호(taskId)를 돌려준다. 오래 붙잡지 않는다 */
-async function submitTopview(male: boolean, cat: string, garmentBytes: Uint8Array, garmentExt: string, garmentMime: string, myAvatar?: Uint8Array) {
+async function submitTopview(male: boolean, cat: string, garmentBytes: Uint8Array, garmentExt: string, garmentMime: string, myAvatar?: Uint8Array, fit?: unknown) {
   let avBytes = myAvatar;
   if (!avBytes) { // 내 아바타가 없으면 기본 캐릭터
     const av = await fetch(male ? AVATAR_URL_MALE : AVATAR_URL);
@@ -95,7 +119,7 @@ async function submitTopview(male: boolean, cat: string, garmentBytes: Uint8Arra
   }
   const [avId, gId] = await Promise.all([tvUpload(avBytes, "jpg", "image/jpeg"), tvUpload(garmentBytes, garmentExt, garmentMime)]);
   const sub = await tvPost("/v1/common_task/image_edit/task/submit", {
-    model: TV_MODEL, prompt: toMale(PROMPTS[cat] + (myAvatar ? KEEP_BODY : KEEP), male), aspectRatio: "9:16", resolution: "1K", generateCount: 1, inputImageFileIds: [avId, gId],
+    model: TV_MODEL, prompt: toMale(PROMPTS[cat] + fitText(fit, cat) + (myAvatar ? KEEP_BODY : KEEP), male), aspectRatio: "9:16", resolution: "1K", generateCount: 1, inputImageFileIds: [avId, gId],
   });
   const taskId = sub.taskId;
   if (!taskId) throw new Error("topview no taskId " + JSON.stringify(sub).slice(0, 200));
@@ -122,7 +146,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json(req, 405, { error: "POST 만 가능합니다." });
   if (!(TV_UID && TV_KEY)) return json(req, 500, { error: "서버에 이미지 생성 키가 설정되지 않았습니다." });
 
-  let body: { action?: string; taskId?: string; device?: string; cat?: string; garment?: string; gender?: string; avatar?: string };
+  let body: { action?: string; taskId?: string; device?: string; cat?: string; garment?: string; gender?: string; avatar?: string; fit?: unknown };
   try { body = await req.json(); } catch { return json(req, 400, { error: "요청 형식이 올바르지 않습니다." }); }
   if (body.action === "status") {
     const tid = String(body.taskId ?? "");
@@ -153,7 +177,7 @@ Deno.serve(async (req) => {
 
   try {
     const bytes = b64ToBytes(garment);
-    const taskId = await submitTopview(body.gender === "male", cat, bytes, ext, mime, myAv ? b64ToBytes(myAv) : undefined);
+    const taskId = await submitTopview(body.gender === "male", cat, bytes, ext, mime, myAv ? b64ToBytes(myAv) : undefined, body.fit);
     return json(req, 200, { taskId });
   } catch (e) {
     console.error("submit failed:", (e as Error).message);
