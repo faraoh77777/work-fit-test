@@ -645,7 +645,7 @@
       var it = item(el.dataset.id);
       if (!it || !confirm('"' + it.name + '" 을(를) 내 옷장에서 삭제할까요?')) return;
       state.closet = state.closet.filter(function (x) { return x.id !== it.id; });
-      dropTryon(it.id);
+      dropTryon(it.id); blobDel('gphoto:' + it.id).catch(function () {});
       Object.keys(state.sel).forEach(function (c) { if (state.sel[c] && state.sel[c].id === it.id) delete state.sel[c]; });
       save(); render();
     },
@@ -769,6 +769,8 @@
           (bad.length ? ' 특히 의심되는 칸: ' + bad.join(', ') + ' (사이즈가 커지는데 값이 어긋남). 표 부분만 크게 캡처하면 더 정확해집니다.' : ''), ok: !bad.length };
         render();
       }).catch(function (err) { ocr = { busy: false, msg: err.message || '글자를 읽지 못했습니다.', ok: false }; render(); });
+    } else if (kind === 'quick') {
+      quickAsk(file);
     } else if (kind === 'draftPhoto') {
       shrink(file, 240, 0.8).then(blobToDataUrl).then(function (u) { state.draft.photo = u; save(); render(); }).catch(function (err) { alert(err.message); });
     } else if (kind === 'avatar') {
@@ -898,9 +900,12 @@
   }
   /* 상품 사진은 서버가 data URL(base64)만 받는다. 스타일 데이터의 사진은 파일 경로라 먼저 읽어서 바꾼다 */
   function photoData(it) {
-    var p = String(it.photo || '');
-    if (/^data:/i.test(p)) return Promise.resolve(p);
-    return fetch(p).then(function (r) { if (!r.ok) throw new Error('상품 사진을 불러오지 못했습니다.'); return r.blob(); }).then(blobToDataUrl);
+    return blobGet('gphoto:' + it.id).catch(function () { return null; }).then(function (b) {
+      if (b) return blobToDataUrl(b); /* 옷 사진으로 입어보기에서 저장한 큰 사진 */
+      var p = String(it.photo || '');
+      if (/^data:/i.test(p)) return p;
+      return fetch(p).then(function (r) { if (!r.ok) throw new Error('상품 사진을 불러오지 못했습니다.'); return r.blob(); }).then(blobToDataUrl);
+    });
   }
   /* 입히기 요청에 실을 핏 정보: 고른 사이즈(없으면 추천 사이즈)의 부위별 여유(cm). 서버가 '꽉 낌/헐렁' 문구로 바꿔 AI에게 알린다 */
   function fitHint(it) {
@@ -1113,7 +1118,7 @@
   ACT.clearTryon = function (el) { dropTryon(el.dataset.id); render(); };
   ACT.sample = function () {
     if ((state.closet.length || state.profile.height) && !confirm('내 정보와 옷장이 기본 모델(여성 ' + MODEL.height + 'cm/' + MODEL.weight + 'kg)과 예시 옷으로 바뀝니다. 계속할까요?')) return;
-    state.closet.forEach(function (x) { dropTryon(x.id); });
+    state.closet.forEach(function (x) { dropTryon(x.id); blobDel('gphoto:' + x.id).catch(function () {}); });
     state.profile = { gender: MODEL.gender, height: MODEL.height, weight: MODEL.weight, pref: 'fit', m: {} };
     state.closet = sampleCloset(); state.sel = {}; state.seq = 10; state.feel = {}; state.draft = null;
     save(); render();
@@ -1201,7 +1206,42 @@
       '<button type="button" data-act="view" data-v="me" class="' + (me ? 'on' : '') + '">내 아바타</button>' +
       (styleApplied(st) ? '<span class="sapplied">코디 적용됨</span>' : '<button type="button" class="sapply" data-act="styleApply">이 코디로 핏 보기</button>') + '</div>' +
       '<button type="button" class="sgo" data-act="styleTryon">내 아바타로 입어보기<small>남은 ' + tryLeft() + '회 · ' + h(planNow().name) + '</small></button>' +
+      quickBtn() +
       '<div class="sshop">' + shopBtn(st, 'coupang') + shopBtn(st, 'naver') + '</div></div>';
+  }
+  /* ---- 옷 사진으로 입어보기: 쇼핑몰 캡처 사진 고르기 → 종류 하나 고르기 → 바로 내 아바타에 입히기(옷장 등록은 자동) ---- */
+  var quickFile = null;
+  function quickBtn() {
+    var inner = '옷 사진으로 입어보기<small>쇼핑몰에서 캡처한 옷 사진을 고르면 바로 입혀요</small>';
+    return user ? '<label class="sgo alt">' + inner + '<input type="file" accept="image/*" data-file="quick" hidden></label>'
+      : '<button type="button" class="sgo alt" data-act="quickGate">' + inner + '</button>';
+  }
+  function quickClose() { var o = document.getElementById('qpick'); if (o) o.remove(); }
+  function quickAsk(file) {
+    quickClose(); quickFile = file;
+    var o = document.createElement('div'); o.id = 'qpick';
+    o.innerHTML = '<div class="qbox"><div class="qt">어떤 옷인가요?</div><div class="qbtns">' +
+      ['top', 'bottom', 'dress', 'shoe'].map(function (c) { return '<button type="button" data-cat="' + c + '"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">' + GLYPH[c] + '</svg>' + CATS[c] + '</button>'; }).join('') +
+      '</div><button type="button" class="qx">취소</button></div>';
+    o.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-cat]');
+      if (b) quickGo(b.dataset.cat);
+      else if (e.target === o || e.target.closest('.qx')) { quickFile = null; quickClose(); }
+    });
+    document.body.appendChild(o);
+  }
+  function quickGo(cat) {
+    var f = quickFile; quickFile = null; quickClose();
+    if (!f) return;
+    if (genPending) { toast('지금 다른 옷을 만드는 중이에요. 끝난 뒤 다시 해 주세요.'); return; }
+    /* 옷장용 작은 사진 + 입히기용 큰 사진(IndexedDB) */
+    Promise.all([shrink(f, 240, 0.8).then(blobToDataUrl), shrink(f, 1280, 0.88)]).then(function (a) {
+      var rec = blankDraft(cat);
+      rec.id = 'p' + (state.seq++); rec.name = '캡처 ' + CATS[cat] + ' ' + rec.id.slice(1); rec.photo = a[0];
+      state.closet.push(rec);
+      state.sel[cat] = { id: rec.id, size: null }; exclusiveSel(cat); save();
+      return blobPut('gphoto:' + rec.id, a[1]).catch(function () {}).then(function () { render(); ACT.genTryon({ dataset: { id: rec.id } }); });
+    }).catch(function (err) { alert((err && err.message) || '사진을 읽지 못했습니다.'); });
   }
   function fab() { return '<button type="button" class="fab" data-act="open" data-name="avatar" aria-label="아바타 만들기"><span class="fi">' + IC.avatar + '</span><span>아바타 만들기</span></button>'; }
   function subCard() {
@@ -1305,6 +1345,7 @@
   function showLogin() { if (user) return; lgOpen = true; resetLogin(); try { history.pushState({ lgo: 1 }, ''); } catch (e) {} render(); window.scrollTo(0, 0); }
   function gate(msg) { toast(msg || '프로필을 만들거나 로그인하면 쓸 수 있어요.'); showLogin(); }
   ACT.lgOpen = function () { showLogin(); };
+  ACT.quickGate = function () { gate('프로필을 만들면 내 아바타에 옷 사진을 입혀 볼 수 있어요.'); };
   /* 메인 화면의 '치수' 버튼: 설정 시트를 열고 내 신체 사이즈 입력칸으로 바로 이동 */
   ACT.bodyInput = function () {
     if (!user) return gate('프로필을 만들면 내 신체 치수를 입력할 수 있어요.');
